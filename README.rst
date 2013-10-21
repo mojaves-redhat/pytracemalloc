@@ -15,5 +15,3 @@ Project homepage: https://pypi.python.org/pypi/pytracemalloc
 
 Documentation: http://pytracemalloc.readthedocs.org/
 
-Python module developed by Wyplay: http://www.wyplay.com/
-
