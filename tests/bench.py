@@ -81,7 +81,7 @@ def test_get_traces():
 
 def bench(func, trace=True):
     if trace:
-        tracemalloc.clear_traces()
+        tracemalloc.reset()
         tracemalloc.enable()
     gc.collect()
     best = None
@@ -112,27 +112,27 @@ def bench_tracing():
     dt = bench(func)
     print("trace: %.1f, %.1f times slower" % (dt, dt / base))
 
-    for n in (1, 10, 100):
-        tracemalloc.enable()
-        tasks = [tracemalloc.Task(str) for index in range(n)] # dummy callback
-        for task in tasks:
-            task.set_delay(60.0)
-            task.schedule()
-        dt = bench(func)
-        print("trace with %s task: %.1f, %.1f times slower" % (n, dt, dt / base))
-        tracemalloc.cancel_tasks()
+#    for n in (1, 10, 100):
+#        tracemalloc.enable()
+#        tasks = [tracemalloctext.Task(str) for index in range(n)] # dummy callback
+#        for task in tasks:
+#            task.set_delay(60.0)
+#            task.schedule()
+#        dt = bench(func)
+#        print("trace with %s task: %.1f, %.1f times slower" % (n, dt, dt / base))
+#        tracemalloc.cancel_tasks()
 
-    tracemalloc.add_include_filter(__file__)
+    tracemalloc.add_inclusive_filter(__file__)
     dt = bench(func)
     print("trace with filter including file: %.1f, %.1f times slower" % (dt, dt / base))
     tracemalloc.clear_filters()
 
-    tracemalloc.add_exclude_filter(__file__ + "xxx")
+    tracemalloc.add_exclusive_filter(__file__ + "xxx")
     dt = bench(func)
     print("trace with not matching excluding file: %.1f, %.1f times slower" % (dt, dt / base))
     tracemalloc.clear_filters()
 
-    tracemalloc.add_exclude_filter(__file__)
+    tracemalloc.add_exclusive_filter(__file__)
     dt = bench(func)
     print("trace with filter excluding file: %.1f, %.1f times slower" % (dt, dt / base))
     tracemalloc.clear_filters()
