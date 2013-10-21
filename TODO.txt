@@ -1,6 +1,11 @@
+TODO
+====
+
+* Decide if PYTHONTRACEMALLOC env var and -X tracemalloc are kept or not
+  (not supported on vanilla Python 3.4)
+
 Python 2.7 patch:
 
 PyAPI_FUNC(char *) _PyMem_RawStrdup(const char *str);
 PyAPI_FUNC(char *) _PyMem_Strdup(const char *str);
 
-test_tracemalloc: get_arena_size()?

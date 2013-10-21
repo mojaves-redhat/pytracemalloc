@@ -14,23 +14,25 @@ Python. It provides the following information:
 
 To trace most memory blocks allocated by Python, the module should be enabled
 as early as possible by setting the :envvar:`PYTHONTRACEMALLOC` environment
-variable to ``1``. The :func:`tracemalloc.enable` function can also be called to start
-tracing Python memory allocations.
+variable to ``1``, or by using :option:`-X` ``tracemalloc`` command line
+option. The :func:`tracemalloc.enable` function can be called at runtime to
+start tracing Python memory allocations.
 
-By default, a trace of an allocated memory block only stores one frame. Use the
-:func:`set_traceback_limit` function to store more frames.
+By default, a trace of an allocated memory block only stores the most recent
+frame (1 frame). To store 25 frames at startup: set the
+:envvar:`PYTHONTRACEMALLOC` environment variable to ``25``, or use the
+:option:`-X` ``tracemalloc=25`` command line option. The
+:func:`set_traceback_limit` function can be used at runtime to set the limit.
 
-Python memory blocks allocated in the :mod:`tracemalloc` module are also traced
-by default. Use ``add_exclude_filter(tracemalloc.__file__)`` to ignore these
-these memory allocations.
+By default, Python memory blocks allocated in the :mod:`tracemalloc` module are
+ignored using a filter. Use :func:`clear_filters` to trace also these memory
+allocations.
 
-At fork, the module is automatically disabled in the child process.
+Websites:
 
-Project homepage: https://pypi.python.org/pypi/pytracemalloc
-
-Documentation: http://pytracemalloc.readthedocs.org/
-
-Python module developed by Wyplay: http://www.wyplay.com/
+* Project homepage: https://pypi.python.org/pypi/pytracemalloc
+* Source code: https://github.com/haypo/pytracemalloc
+* Documentation: http://pytracemalloc.readthedocs.org/
 
 
 Status of the module
@@ -86,188 +88,175 @@ Install::
     /opt/mypython/bin/python setup.py install
 
 
-Example of top outputs
-======================
+Examples
+========
 
-Cumulative top 5 of the biggest allocations grouped by filename, compact
-output::
+Display the top 10
+------------------
 
-    2013-10-03 11:34:39: Cumulative top 5 allocations per filename
-    #1: .../Lib/test/regrtest.py: 554 MiB
-    #2: .../Lib/unittest/suite.py: 499 MiB
-    #3: <frozen importlib._bootstrap>: 401 MiB
-    #4: .../test/support/__init__.py: 349 MiB
-    #5: .../tracemalloc/Lib/runpy.py: 255 MiB
-    1330 more: 822 MiB
-
-Top 5 of the biggest allocations grouped by address, compact output::
-
-    2013-10-03 11:34:39: Top 5 allocations per address
-    #1: memory block 0x805e7010: size=80 MiB
-    #2: memory block 0x9b531010: size=12 MiB
-    #3: memory block 0x1a9b2838: size=1536 KiB
-    #4: memory block 0x19dbfd88: size=253 KiB
-    #5: memory block 0xa9fdcf0: size=252 KiB
-    645844 more: size=56 MiB, average=92 B
-    Traced Python memory: size=151 MiB, average=245 B
-
-Top 10 of the biggest allocations grouped by line number, full output::
-
-    2013-10-03 11:34:39: Top 10 allocations per filename and line number
-    #1: .../tracemalloc/Lib/lzma.py:120: size=93 MiB, count=13, average=7 MiB
-    #2: <frozen importlib._bootstrap>:704: size=24 MiB, count=357474, average=73 B
-    #3: .../Lib/unittest/case.py:496: size=2997 KiB, count=7942, average=386 B
-    #4: .../tracemalloc/Lib/linecache.py:127: size=2054 KiB, count=26474, average=79 B
-    #5: .../Lib/test/test_datetime.py:32: size=1248 KiB, count=27, average=46 KiB
-    #6: <frozen importlib._bootstrap>:274: size=989 KiB, count=12989, average=77 B
-    #7: .../Lib/test/test_zipfile.py:1319: size=858 KiB, count=5, average=171 KiB
-    #8: .../Lib/test/test_enumerate.py:150: size=852 KiB, count=29607, average=29 B
-    #9: .../Lib/unittest/case.py:306: size=309 KiB, count=2504, average=126 B
-    #10: .../Lib/test/test_zipfile.py:1508: size=307 KiB, count=12, average=25 KiB
-    51150 more: size=24 MiB, count=208802, average=120 B
-    Traced Python memory: size=151 MiB, count=645849, average=245 B
-
-    gc.objects: 2688709
-    process_memory.rss: 828 MiB
-    process_memory.vms: 887 MiB
-    tracemalloc.arena_size: 294 MiB
-    tracemalloc.module.fragmentation: 19.2%
-    tracemalloc.module.free: 14 MiB
-    tracemalloc.module.size: 77 MiB
-    tracemalloc.traced.max_size: 182 MiB
-    tracemalloc.traced.size: 151 MiB
-    tracemalloc.traces: 645849
-
-
-Usage
-=====
-
-Display top 25
---------------
-
-Example displaying once the top 50 lines allocating the most memory::
+Display the 10 lines allocating the most memory::
 
     import tracemalloc
     tracemalloc.enable()
-    # ... run your application ...
-    tracemalloc.DisplayTop().display(50)
 
-By default, allocations are grouped by filename and line numbers and the top is
-written into :data:`sys.stdout`.
-
-See the :class:`DisplayTop` class for more options.
-
-
-Display top with differences
-----------------------------
-
-To watch the evolution of memory allocations, the top allocations can be
-displayed regulary using a task. Example displaying the top 50 files when the
-traced memory is increased or decreased by more than 5 MB, or every minute,
-with a compact output (no count, no average, no metric)::
-
-    import tracemalloc
-    task = tracemalloc.DisplayTopTask(25, group_by='filename')
-    task.display_top.count = False
-    task.display_top.average = False
-    task.display_top.metrics = False
-    task.set_memory_threshold(5 * 1024 * 1024)
-    task.set_delay(60)
-    tracemalloc.enable()
-    task.schedule()
     # ... run your application ...
 
-See the :class:`DisplayTopTask` class for more options.
+    snapshot = tracemalloc.Snapshot.create()
+    top = snapshot.top_by('line')
+    stats = top.compare_to(None)
+
+    print("[ Top 10 ]")
+    for size_diff, size, count_diff, count, key in stats[:10]:
+        filename, lineno = key
+        print("%s:%s: %.1f kB" % (filename or "???", lineno or "?", size / 1024))
+
+Example of output of the Python test suite::
+
+    [ Top 10 ]
+    <frozen importlib._bootstrap>:704: 6519.4 KB
+    <frozen importlib._bootstrap>:274: 709.1 KB
+    Lib/linecache.py:127: 616.5 KB
+    ???:?: 316.0 KB
+    Lib/collections/__init__.py:368: 234.8 KB
+    Lib/unittest/case.py:571: 199.5 KB
+    Lib/test/test_grammar.py:132: 199.0 KB
+    <frozen importlib._bootstrap>:1435: 95.4 KB
+    Lib/abc.py:133: 75.1 KB
+    <frozen importlib._bootstrap>:1443: 68.2 KB
+
+Snapshots may use a lot of memory, especially snapshots taken with traces. To
+display the top 10, snapshots can be removed, only the result of
+:meth:`Snapshot.top_by` is needed.
 
 
-Take a snapshot
----------------
+Compute differences
+-------------------
 
-The :class:`DisplayTopTask` class creates temporary snapshots which are lost
-after the top is displayed. When you don't know what you are looking for, you
-can take a snapshot of the allocated memory blocks to analyze it while the
-application is running, or analyze it later.
-
-Example taking a snapshot with traces and writing it into a file::
+Take two snapshots and display the differences::
 
     import tracemalloc
     tracemalloc.enable()
+    snapshot1 = tracemalloc.Snapshot.create()
+
+    # ... call the function leaking memory ...
+
+    snapshot2 = tracemalloc.Snapshot.create()
+
+    top1 = snapshot1.top_by('line')
+    top2 = snapshot2.top_by('line')
+    stats = top2.compare_to(top1)
+
+    print("[ Top 10 differences ]")
+    for size_diff, size, count_diff, count, key in stats[:10]:
+        filename, lineno = key
+        print("%s:%s: %.1f kB (%+.1f kB)"
+              % (filename or "???", lineno or "?",
+                 size / 1024, size_diff / 1024))
+
+Example of output of a short script::
+
+    [ Top 10 differences ]
+    test.py:4: 0.0 kB (-5.0 kB)
+    test.py:8: 0.6 kB (+0.6 kB)
+
+If the system has few free memory, snapshots can be written on disk using the
+:meth:`Snapshot.dump` method. The snapshot can then be loaded using the
+:meth:`Snapshot.load` method to analyze the snapshot after the application
+exited, or on another computer. Using files allow also deeper analysis using
+filters or different views: see :meth:`Snapshot.apply_filters` and
+:meth:`Snapshot.top_by` methods.
+
+
+Get the traceback of a memory block
+-----------------------------------
+
+Code to display the traceback of the biggest memory block::
+
+    import linecache
+    import tracemalloc
+    tracemalloc.enable()
+
     # ... run your application ...
+
     snapshot = tracemalloc.Snapshot.create(traces=True)
-    snapshot.write('snapshot.pickle')
+    top = snapshot.top_by('traceback')
+    stats = top.compare_to(top)
 
-Use the following command to display the snapshot file::
+    size_diff, size, count_diff, count, key = stats[0]
+    address, traceback = key
+    print("Memory block 0x%x: %.1f kB" % (address, size / 1024))
+    for frame in traceback:
+        filename, lineno = frame
+        if filename and lineno:
+            line = linecache.getline(filename, lineno)
+            line = line.strip()
+        else:
+            line = None
 
-    python -m tracemalloc snapshot.pickle
+        print('  File "%s", line %s' % (filename or "???", lineno or "?"))
+        if line:
+            print('    ' + line)
+    print()
 
-See `Command line options`_ for more options. See also
-:meth:`Snapshot.apply_filters` and :meth:`DisplayTop.display_snapshot`
-methods.
+Example of output of the Python test suite (traceback limited to 25 frames)::
 
+    Memory block 0x1725cd0: 768.0 kB
+      File "<frozen importlib._bootstrap>", line 704
+      File "<frozen importlib._bootstrap>", line 1024
+      File "<frozen importlib._bootstrap>", line 922
+      File "<frozen importlib._bootstrap>", line 1056
+      File "<frozen importlib._bootstrap>", line 607
+      File "<frozen importlib._bootstrap>", line 1566
+      File "<frozen importlib._bootstrap>", line 1599
+      File "Lib/test/support/__init__.py", line 142
+        __import__(name)
+      File "Lib/test/support/__init__.py", line 206
+        _save_and_remove_module(name, orig_modules)
+      File "Lib/test/test_decimal.py", line 48
+        C = import_fresh_module('decimal', fresh=['_decimal'])
+      File "<frozen importlib._bootstrap>", line 274
+      File "<frozen importlib._bootstrap>", line 926
+      File "<frozen importlib._bootstrap>", line 1056
+      File "<frozen importlib._bootstrap>", line 607
+      File "<frozen importlib._bootstrap>", line 1566
+      File "<frozen importlib._bootstrap>", line 1599
+      File "<frozen importlib._bootstrap>", line 1618
+      File "Lib/importlib/__init__.py", line 95
+        return _bootstrap._gcd_import(name[level:], package, level)
+      File "Lib/test/regrtest.py", line 1269
+        the_module = importlib.import_module(abstest)
+      File "Lib/test/regrtest.py", line 976
+        display_failure=not verbose)
 
-Compare snapshots
------------------
+.. note::
 
-It is not always easy to find a memory leak using a single snapshot. It is
-easier to take multiple snapshots and compare them to see the differences.
-
-Example taking a snapshot with traces when the traced memory is increased or
-decreased by more than 5 MB, or every minute::
-
-    import tracemalloc
-    task = tracemalloc.TakeSnapshotTask(traces=True)
-    task.set_memory_threshold(5 * 1024 * 1024)
-    task.set_delay(60)
-    tracemalloc.enable()
-    task.schedule()
-    # ... run your application ...
-
-By default, snapshot files are written in the current directory with the name
-``tracemalloc-XXXX.pickle`` where ``XXXX`` is a simple counter.
-
-Use the following command to compare snapshot files::
-
-    python -m tracemalloc tracemalloc-0001.pickle tracemalloc-0002.pickle ...
-
-See `Command line options`_, and :class:`TakeSnapshotTask` and :class:`StatsDiff`
-classes for more options.
+   This memory block of 768 kB (``0x1725cd0``) is the dictionary of Unicode
+   interned strings.
 
 
 API
 ===
 
-The version of the module is ``tracemalloc.__version__`` (``str``, ex:
-``"0.9.1"``).
-
 Main Functions
 --------------
 
-.. function:: cancel_tasks()
+.. function:: reset()
 
-   Cancel scheduled tasks.
+   Clear traces and statistics on Python memory allocations.
 
-   See also the :func:`get_tasks` function.
-
-
-.. function:: clear_traces()
-
-   Clear traces and statistics on Python memory allocations, and reset the
-   :func:`get_arena_size` and :func:`get_traced_memory` counters.
+   See also :func:`disable`.
 
 
 .. function:: disable()
 
-   Stop tracing Python memory allocations and cancel scheduled tasks.
+   Stop tracing Python memory allocations and clear traces and statistics.
 
-   See also :func:`cancel_tasks`, :func:`enable` and :func:`is_enabled`
-   functions.
+   See also :func:`enable` and :func:`is_enabled` functions.
 
 
 .. function:: enable()
 
    Start tracing Python memory allocations.
-
-   At fork, the module is automatically disabled in the child process.
 
    See also :func:`disable` and :func:`is_enabled` functions.
 
@@ -279,14 +268,29 @@ Main Functions
    ``(size: int, count: int)`` tuple, *filename* and *line_number* can
    be ``None``.
 
+   *size* is the total size in bytes of all memory blocks allocated on the
+   line, or *count* is the number of memory blocks allocated on the line.
+
    Return an empty dictionary if the :mod:`tracemalloc` module is disabled.
 
    See also the :func:`get_traces` function.
 
 
-.. function:: get_tasks()
+.. function:: get_traced_memory()
 
-   Get the list of scheduled tasks, list of :class:`Task` instances.
+   Get the current size and maximum size of memory blocks traced by the
+   :mod:`tracemalloc` module as a tuple: ``(size: int, max_size: int)``.
+
+
+.. function:: get_tracemalloc_memory()
+
+   Get the memory usage in bytes of the :mod:`tracemalloc` module used
+   internally to trace memory allocations.
+   Return a tuple: ``(size: int, free: int)``.
+
+   * *size*: total size of bytes allocated by the module,
+     including *free* bytes
+   * *free*: number of free bytes available to store new traces
 
 
 .. function:: is_enabled()
@@ -294,18 +298,26 @@ Main Functions
     ``True`` if the :mod:`tracemalloc` module is tracing Python memory
     allocations, ``False`` otherwise.
 
-    See also :func:`enable` and :func:`disable` functions.
+    See also :func:`disable` and :func:`enable` functions.
 
 
 Trace Functions
 ---------------
 
-.. function:: get_traceback_limit()
+When Python allocates a memory block, :mod:`tracemalloc` attachs a "trace" to
+it to store information on it: its size in bytes and the traceback where the
+allocation occured.
 
-   Get the maximum number of frames stored in the traceback of a trace of a
-   memory block.
+The following functions give access to these traces. A trace is a ``(size: int,
+traceback)`` tuple. *size* is the size of the memory block in bytes.
+*traceback* is a tuple of frames sorted from the most recent to the oldest
+frame, limited to :func:`get_traceback_limit` frames. A frame is
+a ``(filename: str, lineno: int)`` tuple where *filename* and *lineno* can be
+``None``.
 
-   Use the :func:`set_traceback_limit` function to change the limit.
+Example of trace: ``(32, (('x.py', 7), ('x.py', 11)))``.  The memory block has
+a size of 32 bytes and was allocated at ``x.py:7``, line called from line
+``x.py:11``.
 
 
 .. function:: get_object_address(obj)
@@ -313,9 +325,16 @@ Trace Functions
    Get the address of the main memory block of the specified Python object.
 
    A Python object can be composed by multiple memory blocks, the function only
-   returns the address of the main memory block.
+   returns the address of the main memory block. For example, items of
+   :class:`dict` and :class:`set` containers are stored in a second memory block.
 
    See also :func:`get_object_trace` and :func:`gc.get_referrers` functions.
+
+   .. note::
+
+      The builtin function :func:`id` returns a different address for objects
+      tracked by the garbage collector, because :func:`id` returns the address
+      after the garbage collector header.
 
 
 .. function:: get_object_trace(obj)
@@ -326,20 +345,22 @@ Trace Functions
 
    The function only returns the trace of the main memory block of the object.
    The *size* of the trace is smaller than the total size of the object if the
-   object is composed by more than one memory block.
+   object is composed by more than one memory block. For example, items of
+   :class:`dict` and :class:`set` containers are stored in a second memory
+   block.
 
    Return ``None`` if the :mod:`tracemalloc` module did not trace the
    allocation of the object.
 
-   See also :func:`get_object_address`, :func:`get_trace`, :func:`get_traces`,
+   See also :func:`get_object_address`, :func:`get_trace`,
    :func:`gc.get_referrers` and :func:`sys.getsizeof` functions.
 
 
 .. function:: get_trace(address)
 
-   Get the trace of a memory block as a ``(size: int, traceback)`` tuple where
-   *traceback* is a tuple of ``(filename: str, lineno: int)`` tuples,
-   *filename* and *lineno* can be ``None``.
+   Get the trace of a memory block allocated by Python. Return a tuple:
+   ``(size: int, traceback)``, *traceback* is a tuple of ``(filename: str,
+   lineno: int)`` tuples, *filename* and *lineno* can be ``None``.
 
    Return ``None`` if the :mod:`tracemalloc` module did not trace the
    allocation of the memory block.
@@ -348,13 +369,23 @@ Trace Functions
    functions.
 
 
+.. function:: get_traceback_limit()
+
+   Get the maximum number of frames stored in the traceback of a trace.
+
+   By default, a trace of an allocated memory block only stores the most recent
+   frame: the limit is ``1``. This limit is enough to get statistics using
+   :func:`get_stats`.
+
+   Use the :func:`set_traceback_limit` function to change the limit.
+
+
 .. function:: get_traces()
 
-   Get traces of Python memory allocations as a dictionary ``{address
-   (int): trace}`` where *trace* is a
-   ``(size: int, traceback)`` and *traceback* is a list of
-   ``(filename: str, lineno: int)``.
-   *traceback* can be empty, *filename* and *lineno* can be None.
+   Get traces of all memory blocks allocated by Python. Return a dictionary:
+   ``{address (int): trace}``, *trace* is a ``(size: int, traceback)`` tuple,
+   *traceback* is a tuple of ``(filename: str, lineno: int)`` tuples,
+   *filename* and *lineno* can be None.
 
    Return an empty dictionary if the :mod:`tracemalloc` module is disabled.
 
@@ -364,8 +395,7 @@ Trace Functions
 
 .. function:: set_traceback_limit(nframe: int)
 
-   Set the maximum number of frames stored in the traceback of a trace of a
-   memory block.
+   Set the maximum number of frames stored in the traceback of a trace.
 
    Storing the traceback of each memory allocation has an important overhead on
    the memory usage. Use the :func:`get_tracemalloc_memory` function to measure
@@ -373,6 +403,10 @@ Trace Functions
    allocations are traced.
 
    Use the :func:`get_traceback_limit` function to get the current limit.
+
+   The :envvar:`PYTHONTRACEMALLOC` environment variable and the :option:`-X`
+   ``tracemalloc=NFRAME`` command line option can be used to set a limit at
+   startup.
 
 
 Filter Functions
@@ -384,274 +418,90 @@ Filter Functions
    instance.
 
    All inclusive filters are applied at once, a memory allocation is only
-   ignored if no inclusive filter match its trace. A memory allocation is
+   ignored if no inclusive filters match its trace. A memory allocation is
    ignored if at least one exclusive filter matchs its trace.
 
    The new filter is not applied on already collected traces. Use the
-   :func:`clear_traces` function to ensure that all traces match the new
+   :func:`reset` function to ensure that all traces match the new
    filter.
 
-.. function:: add_include_filter(filename: str, lineno: int=None, traceback: bool=False)
+.. function:: add_inclusive_filter(filename_pattern: str, lineno: int=None, traceback: bool=False)
 
-   Add an inclusive filter: helper for the :meth:`add_filter` method creating a
-   :class:`Filter` instance with the :attr:`~Filter.include` attribute set to
+   Add an inclusive filter: helper for the :func:`add_filter` function creating
+   a :class:`Filter` instance with the :attr:`~Filter.include` attribute set to
    ``True``.
 
-   Example: ``tracemalloc.add_include_filter(tracemalloc.__file__)`` only
+   The ``*`` joker character can be used in *filename_pattern* to match any
+   substring, including empty string.
+
+   Example: ``tracemalloc.add_inclusive_filter(tracemalloc.__file__)`` only
    includes memory blocks allocated by the :mod:`tracemalloc` module.
 
 
-.. function:: add_exclude_filter(filename: str, lineno: int=None, traceback: bool=False)
+.. function:: add_exclusive_filter(filename_pattern: str, lineno: int=None, traceback: bool=False)
 
-   Add an exclusive filter: helper for the :meth:`add_filter` method creating a
-   :class:`Filter` instance with the :attr:`~Filter.include` attribute set to
+   Add an exclusive filter: helper for the :func:`add_filter` function creating
+   a :class:`Filter` instance with the :attr:`~Filter.include` attribute set to
    ``False``.
 
-   Example: ``tracemalloc.add_exclude_filter(tracemalloc.__file__)`` ignores
+   The ``*`` joker character can be used in *filename_pattern* to match any
+   substring, including empty string.
+
+   Example: ``tracemalloc.add_exclusive_filter(tracemalloc.__file__)`` ignores
    memory blocks allocated by the :mod:`tracemalloc` module.
 
 
 .. function:: clear_filters()
 
-   Reset the filter list.
+   Clear the filter list.
 
    See also the :func:`get_filters` function.
 
 
 .. function:: get_filters()
 
-   Get the filters on Python memory allocations as list of :class:`Filter`
-   instances.
+   Get the filters on Python memory allocations.
+   Return a list of :class:`Filter` instances.
+
+   By default, there is one exclusive filter to ignore Python memory blocks
+   allocated by the :mod:`tracemalloc` module.
 
    See also the :func:`clear_filters` function.
-
-
-Metric Functions
-----------------
-
-The following functions can be used to add metrics to a snapshot, see
-the :meth:`Snapshot.add_metric` method.
-
-.. function:: get_arena_size()
-
-   Get the size in bytes of traced arenas.
-
-
-.. function:: get_process_memory()
-
-   Get the memory usage of the current process as a ``(rss: int, vms: int)``
-   tuple, *rss* is the "Resident Set Size" in bytes and *vms* is the size of
-   the virtual memory in bytes
-
-   Return ``None`` if the platform is not supported.
-
-
-.. function:: get_traced_memory()
-
-   Get the current size and maximum size of memory blocks traced by the
-   :mod:`tracemalloc` module as a tuple: ``(size: int, max_size: int)``.
-
-
-.. function:: get_tracemalloc_memory()
-
-   Get the memory usage in bytes of the :mod:`tracemalloc` module as a
-   tuple: ``(size: int, free: int)``.
-
-   * *size*: total size of bytes allocated by the module,
-     including *free* bytes
-   * *free*: number of free bytes available to store data
-
-
-.. function:: get_unicode_interned()
-
-   Get the size in bytes and the length of the dictionary of Unicode interned
-   strings as a ``(size: int, length: int)`` tuple.
-
-   The size is the size of the dictionary, excluding the size of strings.
-
-
-DisplayTop
-----------
-
-.. class:: DisplayTop()
-
-   Display the top of allocated memory blocks.
-
-   .. method:: display(count=10, group_by="line", cumulative=False, file=None, callback=None)
-
-      Take a snapshot and display the top *count* biggest allocated memory
-      blocks grouped by *group_by*.
-
-      *callback* is an optional callable object which can be used to add
-      metrics to a snapshot. It is called with only one parameter: the newly
-      created snapshot instance. Use the :meth:`Snapshot.add_metric` method to
-      add new metric.
-
-      Return the snapshot, a :class:`Snapshot` instance.
-
-   .. method:: display_snapshot(snapshot, count=10, group_by="line", cumulative=False, file=None)
-
-      Display a snapshot of memory blocks allocated by Python, *snapshot* is a
-      :class:`Snapshot` instance.
-
-   .. method:: display_top_diff(top_diff, count=10, file=None)
-
-      Display differences between two :class:`GroupedStats` instances,
-      *top_diff* is a :class:`StatsDiff` instance.
-
-   .. method:: display_top_stats(top_stats, count=10, file=None)
-
-      Display the top of allocated memory blocks grouped by the
-      :attr:`~GroupedStats.group_by` attribute of *top_stats*, *top_stats* is a
-      :class:`GroupedStats` instance.
-
-   .. attribute:: average
-
-      If ``True`` (default value), display the average size of memory blocks.
-
-   .. attribute:: color
-
-      If ``True``, always use colors. If ``False``, never use colors. The
-      default value is ``None``: use colors if the *file* parameter is a TTY
-      device.
-
-   .. attribute:: compare_to_previous
-
-      If ``True`` (default value), compare to the previous snapshot. If
-      ``False``, compare to the first snapshot.
-
-   .. attribute:: filename_parts
-
-      Number of displayed filename parts (int, default: ``3``). Extra parts
-      are replaced with ``'...'``.
-
-   .. attribute:: metrics
-
-      If ``True`` (default value), display metrics: see
-      :attr:`Snapshot.metrics`.
-
-   .. attribute:: previous_top_stats
-
-      Previous :class:`GroupedStats` instance, or first :class:`GroupedStats`
-      instance if :attr:`compare_to_previous` is ``False``, used to display the
-      differences between two snapshots.
-
-   .. attribute:: size
-
-      If ``True`` (default value), display the size of memory blocks.
-
-
-DisplayTopTask
---------------
-
-.. class:: DisplayTopTask(count=10, group_by="line", cumulative=False, file=sys.stdout, callback=None)
-
-   Task taking temporary snapshots and displaying the top *count* memory
-   allocations grouped by *group_by*.
-
-   :class:`DisplayTopTask` is based on the :class:`Task` class and so inherit
-   all attributes and methods, especially:
-
-   * :meth:`~Task.cancel`
-   * :meth:`~Task.schedule`
-   * :meth:`~Task.set_delay`
-   * :meth:`~Task.set_memory_threshold`
-
-   Modify the :attr:`display_top` attribute to customize the display.
-
-   .. method:: display()
-
-      Take a snapshot and display the top :attr:`count` biggest allocated
-      memory blocks grouped by :attr:`group_by` using the :attr:`display_top`
-      attribute.
-
-      Return the snapshot, a :class:`Snapshot` instance.
-
-   .. attribute:: callback
-
-      *callback* is an optional callable object which can be used to add
-      metrics to a snapshot. It is called with only one parameter: the newly
-      created snapshot instance. Use the :meth:`Snapshot.add_metric` method to
-      add new metric.
-
-   .. attribute:: count
-
-      Maximum number of displayed memory blocks.
-
-   .. attribute:: cumulative
-
-      If ``True``, cumulate size and count of memory blocks of all frames of
-      each trace, not only the most recent frame. The default value is
-      ``False``.
-
-      The option is ignored if the traceback limit is less than ``2``, see
-      the :func:`get_traceback_limit` function.
-
-   .. attribute:: display_top
-
-      Instance of :class:`DisplayTop`.
-
-   .. attribute:: file
-
-      The top is written into *file*.
-
-   .. attribute:: group_by
-
-      Determine how memory allocations are grouped: see :attr:`Snapshot.top_by`
-      for the available values.
 
 
 Filter
 ------
 
-.. class:: Filter(include: bool, pattern: str, lineno: int=None, traceback: bool=False)
+.. class:: Filter(include: bool, filename_pattern: str, lineno: int=None, traceback: bool=False)
 
    Filter to select which memory allocations are traced. Filters can be used to
    reduce the memory usage of the :mod:`tracemalloc` module, which can be read
    using the :func:`get_tracemalloc_memory` function.
 
-   .. method:: match(filename: str, lineno: int)
-
-      Return ``True`` if the filter matchs the filename and line number,
-      ``False`` otherwise.
-
-   .. method:: match_filename(filename: str)
-
-      Return ``True`` if the filter matchs the filename, ``False`` otherwise.
-
-   .. method:: match_lineno(lineno: int)
-
-      Return ``True`` if the filter matchs the line number, ``False``
-      otherwise.
-
-   .. method:: match_traceback(traceback)
-
-      Return ``True`` if the filter matchs the *traceback*, ``False``
-      otherwise.
-
-      *traceback* is a tuple of ``(filename: str, lineno: int)`` tuples.
+   The ``*`` joker character can be used in *filename_pattern* to match any
+   substring, including empty string. The ``.pyc`` and ``.pyo`` file extensions
+   are replaced with ``.py``. On Windows, the comparison is case insensitive
+   and the alternative separator ``/`` is replaced with the standard separator
+   ``\``.
 
    .. attribute:: include
 
       If *include* is ``True``, only trace memory blocks allocated in a file
-      with a name matching filename :attr:`pattern` at line number
+      with a name matching :attr:`filename_pattern` at line number
       :attr:`lineno`.
 
       If *include* is ``False``, ignore memory blocks allocated in a file with
-      a name matching filename :attr`pattern` at line number :attr:`lineno`.
+      a name matching :attr:`filename_pattern` at line number
+      :attr:`lineno`.
 
    .. attribute:: lineno
 
-      Line number (``int``). If is is ``None`` or less than ``1``, it matches
-      any line number.
+      Line number (``int``) of the filter. If *lineno* is is ``None`` or less
+      than ``1``, the filter matches any line number.
 
-   .. attribute:: pattern
+   .. attribute:: filename_pattern
 
-      The filename *pattern* can contain one or many ``*`` joker characters
-      which match any substring, including an empty string. The ``.pyc`` and
-      ``.pyo`` file extensions are replaced with ``.py``. On Windows, the
-      comparison is case insensitive and the alternative separator ``/`` is
-      replaced with the standard separator ``\``.
+      Filename pattern (``str``) of the filter.
 
    .. attribute:: traceback
 
@@ -665,19 +515,25 @@ Filter
 GroupedStats
 ------------
 
-.. class:: GroupedStats(timestamp: datetime.datetime, stats: dict, group_by: str, cumulative=False, metrics: dict=None)
+.. class:: GroupedStats(timestamp: datetime.datetime, traceback_limit: int, stats: dict, group_by: str, cumulative=False, metrics: dict=None)
 
    Top of allocated memory blocks grouped by *group_by* as a dictionary.
 
    The :meth:`Snapshot.top_by` method creates a :class:`GroupedStats` instance.
 
-   .. method:: compare_to(old_stats: GroupedStats=None)
+   .. method:: compare_to(old_stats: GroupedStats=None, sort=True)
 
       Compare to an older :class:`GroupedStats` instance.
-      Return a :class:`StatsDiff` instance.
 
-      The :attr:`StatsDiff.differences` list is not sorted: call
-      the :meth:`StatsDiff.sort` method to sort the list.
+      Return a list of ``(size_diff, size, count_diff, count, key)`` tuples.
+      *size_diff*, *size*, *count_diff* and *count* are ``int``. The key type
+      depends on the :attr:`group_by` attribute: see the
+      :meth:`Snapshot.top_by` method.
+
+      The result is sorted in the biggest to the smallest by
+      ``abs(size_diff)``, *size*, ``abs(count_diff)``, *count* and then by
+      *key*. Set the *sort* paramter to ``False`` to get the list unsorted and
+      use your own sort method.
 
       ``None`` values are replaced with an empty string for filenames or zero
       for line numbers, because :class:`str` and :class:`int` cannot be
@@ -685,8 +541,8 @@ GroupedStats
 
    .. attribute:: cumulative
 
-      If ``True``, cumulate size and count of memory blocks of all frames of
-      the traceback of a trace, not only the most recent frame.
+      If ``True``, size and count of memory blocks of all frames of the
+      traceback of a trace were cumulated, not only the most recent frame.
 
    .. attribute:: metrics
 
@@ -696,7 +552,7 @@ GroupedStats
    .. attribute:: group_by
 
       Determine how memory allocations were grouped: see
-      :attr:`Snapshot.top_by` for the available values.
+      :meth:`Snapshot.top_by()` for the available values.
 
    .. attribute:: stats
 
@@ -705,6 +561,11 @@ GroupedStats
       tuple.
 
       See the :meth:`Snapshot.top_by` method.
+
+   .. attribute:: traceback_limit
+
+      Maximum number of frames stored in the traceback of :attr:`traces`,
+      result of the :func:`get_traceback_limit` function.
 
    .. attribute:: timestamp
 
@@ -717,11 +578,14 @@ Metric
 
 .. class:: Metric(name: str, value: int, format: str)
 
-   Value of a metric when a snapshot is created.
+   Value of a measure read when a snapshot is taken.
+
+   Example of metrics: Resident Set Size (RSS) memory of a process, memory in
+   bytes used by Python, number of Python objects, etc.
 
    .. attribute:: name
 
-      Name of the metric.
+      Name of the metric (``str``).
 
    .. attribute:: value
 
@@ -729,30 +593,15 @@ Metric
 
    .. attribute:: format
 
-      Format of the metric:
-
-      * ``'int'``: a number
-      * ``'percent'``: percentage, ``1.0`` means ``100%``
-      * ``'size'``: a size in bytes
+      Format of the metric used to display a metric (``str``, ex: ``'size'``).
 
 
 Snapshot
 --------
 
-.. class:: Snapshot(timestamp: datetime.datetime, pid: int, traces: dict=None, stats: dict=None, metrics: dict=None)
+.. class:: Snapshot(timestamp: datetime.datetime, traceback_limit: int, stats: dict=None, traces: dict=None, metrics: dict=None)
 
-   Snapshot of traces and statistics on memory blocks allocated by Python.
-
-   Use :class:`TakeSnapshotTask` to take regulary snapshots.
-
-   .. method:: add_gc_metrics()
-
-      Add a metric on the garbage collector:
-
-      * ``gc.objects``: total number of Python objects
-
-      See the :mod:`gc` module.
-
+   Snapshot of statistics and traces of memory blocks allocated by Python.
 
    .. method:: add_metric(name: str, value: int, format: str)
 
@@ -763,47 +612,16 @@ Snapshot
       :attr:`Snapshot.metrics`.
 
 
-   .. method:: add_process_memory_metrics()
-
-      Add metrics on the process memory:
-
-      * ``process_memory.rss``: Resident Set Size
-      * ``process_memory.vms``: Virtual Memory Size
-
-      These metrics are only available if the :func:`get_process_memory`
-      function is available on the platform.
-
-
-   .. method:: add_tracemalloc_metrics()
-
-      Add metrics on the :mod:`tracemalloc` module:
-
-      * ``tracemalloc.traced.size``: size of memory blocks traced by the
-        :mod:`tracemalloc` module
-      * ``tracemalloc.traced.max_size``: maximum size of memory blocks traced
-        by the :mod:`tracemalloc` module
-      * ``tracemalloc.traces``: number of traces of Python memory blocks
-      * ``tracemalloc.module.size``: total size of bytes allocated by the
-        :mod:`tracemalloc` module, including free bytes
-      * ``tracemalloc.module.free``: number of free bytes available for
-        the :mod:`tracemalloc` module
-      * ``tracemalloc.module.fragmentation``: percentage of fragmentation of
-        the memory allocated by the :mod:`tracemalloc` module
-      * ``tracemalloc.arena_size``: size of traced arenas
-
-      ``tracemalloc.traces`` metric is only present if the snapshot was created
-      with traces.
-
-
    .. method:: apply_filters(filters)
 
       Apply filters on the :attr:`traces` and :attr:`stats` dictionaries,
       *filters* is a list of :class:`Filter` instances.
 
 
-   .. classmethod:: create(traces=False, metrics=True)
+   .. classmethod:: create(traces=False)
 
-      Take a snapshot of traces and/or statistics of allocated memory blocks.
+      Take a snapshot of statistics and traces of memory blocks allocated by
+      Python.
 
       If *traces* is ``True``, :func:`get_traces` is called and its result
       is stored in the :attr:`Snapshot.traces` attribute. This attribute
@@ -811,22 +629,19 @@ Snapshot
       memory and more disk space. If *traces* is ``False``,
       :attr:`Snapshot.traces` is set to ``None``.
 
-      If *metrics* is ``True``, fill :attr:`Snapshot.metrics` with metrics
-      using the following methods:
-
-      * :meth:`add_gc_metrics`
-      * :meth:`add_process_memory_metrics`
-      * :meth:`add_tracemalloc_metrics`
-
-      If *metrics* is ``False``, :attr:`Snapshot.metrics` is set to an empty
-      dictionary.
-
       Tracebacks of traces are limited to :attr:`traceback_limit` frames. Call
       :func:`set_traceback_limit` before calling :meth:`~Snapshot.create` to
       store more frames.
 
-      The :mod:`tracemalloc` module must be enabled to take a snapshot. See the
+      The :mod:`tracemalloc` module must be enabled to take a snapshot, see the
       the :func:`enable` function.
+
+   .. method:: dump(filename)
+
+      Write the snapshot into a file.
+
+      Use :meth:`load` to reload the snapshot.
+
 
    .. method:: get_metric(name, default=None)
 
@@ -840,40 +655,36 @@ Snapshot
 
       If *traces* is ``False``, don't load traces.
 
+      See also :meth:`dump`.
+
 
    .. method:: top_by(group_by: str, cumulative: bool=False)
 
       Compute top statistics grouped by *group_by* as a :class:`GroupedStats`
       instance:
 
-      =====================  ========================  ==============
+      =====================  ========================  ================================
       group_by               description               key type
-      =====================  ========================  ==============
+      =====================  ========================  ================================
       ``'filename'``         filename                  ``str``
-      ``'line'``             filename and line number  ``(str, int)``
+      ``'line'``             filename and line number  ``(filename: str, lineno: int)``
       ``'address'``          memory block address      ``int``
-      =====================  ========================  ==============
+      ``'traceback'``        traceback                 ``(address: int, traceback)``
+      =====================  ========================  ================================
+
+      The ``traceback`` type is a tuple of ``(filename: str, lineno: int)``
+      tuples, *filename* and *lineno* can be ``None``.
 
       If *cumulative* is ``True``, cumulate size and count of memory blocks of
       all frames of the traceback of a trace, not only the most recent frame.
-      The *cumulative* parameter is ignored if *group_by* is ``'address'`` or
-      if the traceback limit is less than ``2``.
-
-
-   .. method:: write(filename)
-
-      Write the snapshot into a file.
+      The *cumulative* parameter is set to ``False`` if *group_by* is
+      ``'address'``, or if the traceback limit is less than ``2``.
 
 
    .. attribute:: metrics
 
       Dictionary storing metrics read when the snapshot was created:
       ``{name (str): metric}`` where *metric* type is :class:`Metric`.
-
-   .. attribute:: pid
-
-      Identifier of the process which created the snapshot, result of
-      :func:`os.getpid`.
 
    .. attribute:: stats
 
@@ -882,8 +693,8 @@ Snapshot
 
    .. attribute:: traceback_limit
 
-      Maximum number of frames stored in a trace of a memory block allocated by
-      Python.
+      Maximum number of frames stored in the traceback of :attr:`traces`,
+      result of the :func:`get_traceback_limit` function.
 
    .. attribute:: traces
 
@@ -896,302 +707,14 @@ Snapshot
       instance.
 
 
-StatsDiff
----------
-
-.. class:: StatsDiff(differences, old_stats, new_stats)
-
-   Differences between two :class:`GroupedStats` instances.
-
-   The :meth:`GroupedStats.compare_to` method creates a :class:`StatsDiff`
-   instance.
-
-   .. method:: sort()
-
-      Sort the :attr:`differences` list from the biggest difference to the
-      smallest difference. Sort by ``abs(size_diff)``, *size*,
-      ``abs(count_diff)``, *count* and then by *key*.
-
-   .. attribute:: differences
-
-      Differences between :attr:`old_stats` and :attr:`new_stats` as a list of
-      ``(size_diff, size, count_diff, count, key)`` tuples. *size_diff*,
-      *size*, *count_diff* and *count* are ``int``. The key type depends on the
-      :attr:`~GroupedStats.group_by` attribute of :attr:`new_stats`: see the
-      :meth:`Snapshot.top_by` method.
-
-   .. attribute:: old_stats
-
-      Old :class:`GroupedStats` instance, can be ``None``.
-
-   .. attribute:: new_stats
-
-      New :class:`GroupedStats` instance.
-
-
-Task
-----
-
-.. class:: Task(func, \*args, \*\*kw)
-
-   Task calling ``func(*args, **kw)``. When scheduled, the task is called when
-   the traced memory is increased or decreased by more than *threshold* bytes,
-   or after *delay* seconds.
-
-   .. method:: call()
-
-      Call ``func(*args, **kw)`` and return the result.
-
-
-   .. method:: cancel()
-
-      Cancel the task.
-
-      Do nothing if the task is not scheduled.
-
-
-   .. method:: get_delay()
-
-      Get the delay in seconds. If the delay is ``None``, the timer is
-      disabled.
-
-
-   .. method:: get_memory_threshold()
-
-      Get the threshold of the traced memory. When scheduled, the task is
-      called when the traced memory is increased or decreased by more than
-      *threshold* bytes. The memory threshold is disabled if *threshold* is
-      ``None``.
-
-      See also the :meth:`set_memory_threshold` method and the
-      :func:`get_traced_memory` function.
-
-
-   .. method:: schedule(repeat: int=None)
-
-      Schedule the task *repeat* times. If *repeat* is ``None``, the task is
-      rescheduled after each call until it is cancelled.
-
-      If the method is called twice, the task is rescheduled with the new
-      *repeat* parameter.
-
-      The task must have a memory threshold or a delay: see :meth:`set_delay`
-      and :meth:`set_memory_threshold` methods. The :mod:`tracemalloc` must be
-      enabled to schedule a task: see the :func:`enable` function.
-
-      The task is cancelled if the :meth:`call` method raises an exception.
-      The task can be cancelled using the :meth:`cancel` method or the
-      :func:`cancel_tasks` function.
-
-
-   .. method:: set_delay(seconds: int)
-
-      Set the delay in seconds before the task will be called. Set the delay to
-      ``None`` to disable the timer.
-
-      The timer is based on the Python memory allocator, it is not real time.
-      The task is called after at least *delay* seconds, it is not called
-      exactly after *delay* seconds if no Python memory allocation occurred.
-      The timer has a resolution of 1 second.
-
-      The task is rescheduled if it was scheduled.
-
-
-   .. method:: set_memory_threshold(size: int)
-
-      Set the threshold of the traced memory. When scheduled, the task is
-      called when the traced memory is increased or decreased by more than
-      *threshold* bytes. Set the threshold to ``None`` to disable it.
-
-      The task is rescheduled if it was scheduled.
-
-      See also the :meth:`get_memory_threshold` method and the
-      :func:`get_traced_memory` function.
-
-
-   .. attribute:: func
-
-      Function, callable object.
-
-   .. attribute:: func_args
-
-      Function arguments, :class:`tuple`.
-
-   .. attribute:: func_kwargs
-
-      Function keyword arguments, :class:`dict`. It can be ``None``.
-
-
-TakeSnapshotTask
-----------------
-
-.. class:: TakeSnapshotTask(filename_template: str="tracemalloc-$counter.pickle", traces: bool=False, metrics: bool=True, callback: callable=None)
-
-   Task taking snapshots of Python memory allocations and writing them into
-   files.
-
-   :class:`TakeSnapshotTask` is based on the :class:`Task` class and so inherit
-   all attributes and methods, especially:
-
-   * :meth:`~Task.cancel`
-   * :meth:`~Task.schedule`
-   * :meth:`~Task.set_delay`
-   * :meth:`~Task.set_memory_threshold`
-
-   .. method:: take_snapshot()
-
-      Take a snapshot and write it into a file.
-      Return ``(snapshot, filename)`` where *snapshot* is a :class:`Snapshot`
-      instance and filename type is :class:`str`.
-
-   .. attribute:: callback
-
-      *callback* is an optional callable object which can be used to add
-      metrics to a snapshot. It is called with only one parameter: the newly
-      created snapshot instance. Use the :meth:`Snapshot.add_metric` method to
-      add new metric.
-
-   .. attribute:: filename_template
-
-      Template to create a filename. The template supports the following
-      variables:
-
-      * ``$pid``: identifier of the current process
-      * ``$timestamp``: current date and time
-      * ``$counter``: counter starting at 1 and incremented at each snapshot,
-        formatted as 4 decimal digits
-
-      The default template is ``'tracemalloc-$counter.pickle'``.
-
-   .. attribute:: metrics
-
-      Parameter passed to the :meth:`Snapshot.create` function.
-
-   .. attribute:: traces
-
-      Parameter passed to the :meth:`Snapshot.create` function.
-
-
-Command line options
-====================
-
-The ``python -m tracemalloc`` command can be used to display, analyze and
-compare snapshot files.
-
-The command has the following options.
-
-``-a``, ``--address`` option:
-
-    Group memory allocations by address, instead of grouping by line number.
-
-``-f``, ``--file`` option:
-
-    Group memory allocations per filename, instead of grouping by line number.
-
-``-n NUMBER``, ``--number NUMBER`` option:
-
-    Number of traces displayed per top (default: 10): set the *count* parameter
-    of the :meth:`DisplayTop.display_snapshot` method.
-
-``--first`` option:
-
-    Compare with the first snapshot, instead of comparing with the previous
-    snapshot: set the :attr:`DisplayTop.compare_to_previous` attribute to
-    ``False``.
-
-``-c``, ``--cumulative`` option:
-
-    Cumulate size and count of allocated memory blocks using all frames, not
-    only the most recent frame: set *cumulative* parameter of the
-    :meth:`DisplayTop.display_snapshot` method to ``True``.
-
-    The option has only an effect if the snapshot
-    contains traces and if the traceback limit was greater than ``1``.
-
-``-b ADDRESS``, ``--block=ADDRESS`` option:
-
-    Get the memory block at address *ADDRESS*, display its size and the
-    traceback where it was allocated.
-
-    The option can only be used on snapshots created with traces.
-
-``-t``, ``--traceback`` option:
-
-    Group memory allocations by address, display the size and the traceback
-    of the *NUMBER* biggest allocated memory blocks.
-
-    The option can only be used on snapshots created with traces. By default,
-    the traceback limit is ``1`` frame: set a greater limit with the
-    :func:`set_traceback_limit` function before taking snapshots to get more
-    frames.
-
-    See the ``--number`` option for *NUMBER*.
-
-``-i FILENAME[:LINENO]``, ``--include FILENAME[:LINENO]`` option:
-
-    Only include traces of files with a name matching *FILENAME* pattern at
-    line number *LINENO*.  Only check the most recent frame. The option can be
-    specified multiple times.
-
-    See the :func:`add_include_filter` function for the syntax of a filter.
-
-``-I FILENAME[:LINENO]``, ``--include-traceback FILENAME[:LINENO]`` option:
-
-    Similar to ``--include`` option, but check all frames of the traceback.
-
-``-x FILENAME[:LINENO]``, ``--exclude FILENAME[:LINENO]`` option:
-
-    Exclude traces of files with a name matching *FILENAME* pattern at line
-    number *LINENO*.  Only check the most recent frame. The option can be
-    specified multiple times.
-
-    See the :func:`add_exclude_filter` method for the syntax of a filter.
-
-``-X FILENAME[:LINENO]``, ``--exclude-traceback FILENAME[:LINENO]`` option:
-
-    Similar to ``--exclude`` option, but check all frames of the traceback.
-
-``-S``, ``--hide-size`` option:
-
-    Hide the size of allocations: set :attr:`DisplayTop.size` attribute to
-    ``False``.
-
-``-C``, ``--hide-count`` option:
-
-    Hide the number of allocations: set :attr:`DisplayTop.count` attribute
-    to ``False``.
-
-``-A``, ``--hide-average`` option:
-
-    Hide the average size of allocations: set :attr:`DisplayTop.average`
-    attribute to ``False``.
-
-``-M``, ``--hide-metrics`` option:
-
-    Hide metrics, see :attr:`DisplayTop.metrics`.
-
-``-P PARTS``, ``--filename-parts=PARTS`` option:
-
-    Number of displayed filename parts (default: 3): set
-    :attr:`DisplayTop.filename_parts` attribute.
-
-``--color`` option:
-
-    Always use colors, even if :data:`sys.stdout` is not a TTY device: set the
-    :attr:`DisplayTop.color` attribute to ``True``.
-
-``--no-color`` option:
-
-    Never use colors, even if :data:`sys.stdout` is a TTY device: set the
-    :attr:`DisplayTop.color` attribute to ``False``.
-
-
 Changelog
 =========
 
 Development version:
 
 - Rewrite the API to prepare the PEP 454
+- Split the project into two parts: pytracemalloc and pytracemalloctext:
+  https://github.com/haypo/pytracemalloctext
 - Remove the dependency to the glib library: tracemalloc now has its own
   implementation of hash table, based on the cfuhash library
 

@@ -44,102 +44,30 @@
    ----------------------------------
 */
 
-#define VERSION "1.0dev"
-
 #include "Python.h"
 #include "frameobject.h"
-#include "pystate.h"
 #include "pythread.h"
 #include "osdefs.h"
 #ifdef NT_THREADS
 #  include <Windows.h>
 #endif
-#ifdef MS_WINDOWS
-#  include <Psapi.h>
-#endif
-
-#if PY_MAJOR_VERSION >= 3
-# define PYTHON3
-#endif
-
-#if defined(PYTHON3) || (PY_MAJOR_VERSION >= 2 && PY_MINOR_VERSION >= 7)
-#  define PYINT_FROM_SSIZE_T PyLong_FromSize_t
-#else
-#  define PYINT_FROM_SSIZE_T PyInt_FromSize_t
-#endif
-
-#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 3
-#  define PEP393
-#  define STRING_READ(KIND, DATA, INDEX) PyUnicode_READ(KIND, DATA, INDEX)
-#  define STRING_WRITE(KIND, DATA, INDEX, CHAR) PyUnicode_WRITE(KIND, DATA, INDEX, CHAR)
-#  define STRING_LENGTH(STR) PyUnicode_GET_LENGTH(STR)
-#  define STRING_DATA(STR) PyUnicode_DATA(STR)
-
-#elif defined(PYTHON3)
-#  define STRING_READ(KIND, DATA, INDEX) ((DATA)[INDEX])
-#  define STRING_WRITE(KIND, DATA, INDEX, CHAR) \
-    do { STRING_READ(KIND, DATA, INDEX) = (CHAR); } while (0)
-#  define STRING_LENGTH(STR) PyUnicode_GET_LENGTH(STR)
-#  define STRING_DATA(STR) PyUnicode_AS_UNICODE(STR)
-
-#else
-#  define STRING_READ(KIND, DATA, INDEX) ((DATA)[INDEX])
-#  define STRING_WRITE(KIND, DATA, INDEX, CHAR) \
-    do { STRING_READ(KIND, DATA, INDEX) = (CHAR); } while (0)
-#  define STRING_LENGTH(STR) PyString_GET_SIZE(STR)
-#  define STRING_DATA(STR) PyString_AS_STRING(STR)
-#endif
-
-#ifdef PYTHON3
-#  define STRING_COMPARE(str1, str2) PyUnicode_Compare(str1, str2)
-#  define STRING_CHECK(obj) PyUnicode_Check(obj)
-#  define CHAR_LOWER _PyUnicode_ToLowercase
-#else
-#  define STRING_COMPARE(str1, str2) PyObject_Compare(str1, str2)
-#  define STRING_CHECK(obj) PyString_Check(obj)
-#  define CHAR_LOWER tolower
-#endif
-
-
-#ifndef PYTHON3
-typedef long Py_hash_t;
-typedef unsigned long Py_uhash_t;
-#endif
-
-#ifndef _PyHASH_MULTIPLIER
-#define _PyHASH_MULTIPLIER 1000003UL  /* 0xf4243 */
-#endif
-
-#ifndef Py_TYPE
-   /* Python 2.5 doesn't have this macro */
-#  define Py_TYPE(obj) obj->ob_type
+#ifdef _POSIX_THREADS
+#  include <pthread.h>
 #endif
 
 /* Page of a memory page */
 #define PAGE_SIZE 4096
 #define PAGE_SIZE_BITS 12
 
-/* Trace also memory blocks allocated by PyMem_RawMalloc() */
-#define TRACE_RAW_MALLOC
-
 /* Use a memory pool to release the memory as soon as traces are deleted,
    and to reduce the fragmentation of the heap */
 #define USE_MEMORY_POOL
 
-#if defined(HAVE_PTHREAD_ATFORK) && defined(WITH_THREAD)
-#  define TRACE_ATFORK
-
 /* Forward declaration */
-static void tracemalloc_atfork(void);
-#endif
-
-/* Forward declaration */
-static int tracemalloc_disable(void);
+static void tracemalloc_disable(void);
 static void* raw_malloc(size_t size);
 static void* raw_realloc(void *ptr, size_t size);
 static void raw_free(void *ptr);
-static void task_list_check(void);
-static int task_list_clear(void);
 #ifdef USE_MEMORY_POOL
 static void* raw_alloc_arena(size_t size);
 static void raw_free_arena(void *ptr, size_t size);
@@ -153,10 +81,6 @@ static void raw_free_arena(void *ptr, size_t size);
 #  define TRACE_NORMALIZE_FILENAME
 #endif
 
-#ifdef TRACE_ATFORK
-#  include <pthread.h>
-#endif
-
 #ifdef Py_DEBUG
 #  define TRACE_DEBUG
 #endif
@@ -167,6 +91,7 @@ static void raw_free_arena(void *ptr, size_t size);
 
 #define INT_TO_POINTER(value) ((void*)(Py_uintptr_t)(int)(value))
 #define POINTER_TO_INT(ptr) ((int)(Py_uintptr_t)(ptr))
+#define STR(VAL) #VAL
 
 /* number chosen to limit the number of compaction of a memory pool */
 #define MAX_ARENAS 32
@@ -373,23 +298,6 @@ key_hash_ptr(const void *key)
     return (Py_uhash_t)_Py_HashPointer((void *)key);
 }
 
-#ifdef TRACE_ARENA
-static Py_uhash_t
-key_hash_arena_ptr(const void *key)
-{
-    Py_hash_t x;
-    size_t y = (size_t)key;
-    /* bottom 12 bits are likely to be 0 (arena pointers aligned on a page
-       size, usually 4096 bytes); rotate y by 12 to avoid excessive hash
-       collisions for dicts and sets */
-    y = (y >> PAGE_SIZE_BITS) | (y << (8 * SIZEOF_VOID_P - PAGE_SIZE_BITS));
-    x = (Py_hash_t)y;
-    if (x == -1)
-        x = -2;
-    return x;
-}
-#endif
-
 static Py_uhash_t
 filename_hash(PyObject *filename)
 {
@@ -403,7 +311,7 @@ static int
 key_cmp_unicode(const void *key, hash_entry_t *he)
 {
     if (key != NULL && he->key != NULL)
-        return (STRING_COMPARE((PyObject *)key, (PyObject *)he->key) == 0);
+        return (PyUnicode_Compare((PyObject *)key, (PyObject *)he->key) == 0);
     else
         return key == he->key;
 }
@@ -1134,6 +1042,10 @@ pool_defrag(pool_t *pool, size_t length)
         /* an item has been removed */
         size_t free;
 
+        /* empty pool, nothing to do */
+        if (pool->narena == 0)
+            return 0;
+
         /* don't defrag small tables */
         if (pool->length / pool->narena <= ARENA_MIN_SIZE / pool->item_size
             /* two checks to avoid an integer overflow */
@@ -1300,10 +1212,8 @@ static struct {
     PyMemAllocator obj;
 } allocators;
 
-#ifdef TRACE_ARENA
 /* Protected by the GIL */
 static PyObjectArenaAllocator arena_allocator;
-#endif
 
 static struct {
     /* tracemalloc_init() was already called?
@@ -1431,9 +1341,9 @@ typedef struct {
 } filter_list_t;
 
 #if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
-/* This lock is needed because tracemalloc_raw_free() is called without
-   the GIL held. It cannot acquire the lock because it would introduce
-   a deadlock in PyThreadState_DeleteCurrent(). */
+/* This lock is needed because tracemalloc_free() is called without
+   the GIL held from PyMem_RawFree(). It cannot acquire the lock because it
+   would introduce a deadlock in PyThreadState_DeleteCurrent(). */
 static PyThread_type_lock tables_lock;
 #  define TABLES_LOCK() PyThread_acquire_lock(tables_lock, 1)
 #  define TABLES_UNLOCK() PyThread_release_lock(tables_lock)
@@ -1478,28 +1388,6 @@ typedef struct {
 #define TRACEBACK_STACK_SIZE TRACEBACK_SIZE(MAX_NFRAME)
 
 typedef struct {
-    int enabled;
-    int failed;
-
-    Py_ssize_t ncall;
-
-    int delay;
-    time_t timeout;
-
-    Py_ssize_t memory_threshold;
-    size_t min_traced;
-    size_t max_traced;
-
-    PyObject *func;
-    PyObject *func_args;
-    PyObject *func_kwargs;
-} task_t;
-
-/* List of tasks (PyListObject*).
-   Protected by the GIL */
-static PyObject* tracemalloc_tasks;
-
-typedef struct {
     size_t size;
     size_t count;
 } trace_stats_t;
@@ -1511,12 +1399,6 @@ static size_t tracemalloc_traced_memory = 0;
 /* Maximum size of traced memory.
    Protected by TABLES_LOCK(). */
 static size_t tracemalloc_max_traced_memory = 0;
-
-#ifdef TRACE_ARENA
-/* Total size of the arenas memory.
-   Protected by the GIL. */
-static size_t tracemalloc_arena_size = 0;
-#endif
 
 static struct {
     /* tracemalloc_filenames, tracemalloc_tracebacks.
@@ -1549,13 +1431,8 @@ static hash_t *tracemalloc_file_stats = NULL;
    Protected by TABLES_LOCK(). */
 static hash_t *tracemalloc_traces = NULL;
 
-#ifdef TRACE_ARENA
-/* Set of arena pointers, see tracemalloc_alloc_arena().
-   Protected by the GIL */
-static hash_t *tracemalloc_arenas = NULL;
-#endif
-
 /* Forward declaration */
+static int tracemalloc_add_filter(filter_t *filter);
 static int traceback_match_filters(traceback_t *traceback);
 
 static void*
@@ -1577,8 +1454,6 @@ raw_free(void *ptr)
 }
 
 #ifdef USE_MEMORY_POOL
-
-#ifdef TRACE_ARENA
 static void*
 raw_alloc_arena(size_t size)
 {
@@ -1590,140 +1465,7 @@ raw_free_arena(void *ptr, size_t size)
 {
     arena_allocator.free(arena_allocator.ctx, ptr, size);
 }
-#else
-static void*
-raw_alloc_arena(size_t size)
-{
-    return malloc(size);
-}
-
-static void
-raw_free_arena(void *ptr, size_t size)
-{
-    free(ptr);
-}
 #endif
-
-#endif
-
-
-static void
-task_init(task_t *task)
-{
-    memset(task, 0,  sizeof(task_t));
-    task->memory_threshold = -1;
-    task->delay = -1;
-}
-
-static void
-task_schedule(task_t *task)
-{
-    size_t traced;
-
-    assert(!task->enabled);
-    assert(task->ncall != 0);
-
-    if (task->delay > 0) {
-        task->timeout = time(NULL) + task->delay;
-    }
-    if (task->memory_threshold > 0) {
-        TABLES_LOCK();
-        traced = tracemalloc_traced_memory;
-        TABLES_UNLOCK();
-
-        if (traced >= task->memory_threshold)
-            task->min_traced = traced - task->memory_threshold;
-        else
-            task->min_traced = 0;
-        if (traced <= PY_SSIZE_T_MAX - task->memory_threshold)
-            task->max_traced = traced + task->memory_threshold;
-        else
-            task->max_traced = PY_SSIZE_T_MAX;
-    }
-    task->failed = 0;
-    task->enabled = 1;
-}
-
-static void
-task_reschedule(task_t *task)
-{
-    if (task->failed)
-        return;
-    assert(task->enabled);
-    task->enabled = 0;
-    task_schedule(task);
-}
-
-static void
-task_cancel(task_t *task)
-{
-    task->enabled = 0;
-}
-
-static PyObject*
-task_call(task_t *task)
-{
-    return PyEval_CallObjectWithKeywords(task->func,
-                                         task->func_args,
-                                         task->func_kwargs);
-}
-
-static int
-task_call_pending(void *user_data)
-{
-    task_t *task = user_data;
-    PyObject *res;
-
-    assert(task->ncall != 0);
-    if (task->ncall > 0)
-        task->ncall--;
-
-    res = task_call(task);
-    if (res == NULL) {
-        /* on error, don't reschedule the task */
-        task->failed = 1;
-        PyErr_WriteUnraisable(NULL);
-        return 0;
-    }
-    Py_DECREF(res);
-
-    if (task->ncall != 0)
-        task_schedule(task);
-
-    return 0;
-}
-
-static void
-task_call_later(task_t *task)
-{
-    int res;
-
-    task->enabled = 0;
-    res = Py_AddPendingCall(task_call_pending, task);
-    if (res != 0) {
-        /* failed to add the pending call: retry later */
-        task->enabled = 1;
-        return;
-    }
-}
-
-static void
-task_check(task_t *task)
-{
-    if (task->memory_threshold > 0
-        && (tracemalloc_traced_memory <= task->min_traced
-           || tracemalloc_traced_memory >= task->max_traced))
-    {
-        task_call_later(task);
-        return;
-    }
-
-    if (task->delay > 0 && time(NULL) >= task->timeout)
-    {
-        task_call_later(task);
-        return;
-    }
-}
 
 
 static Py_uhash_t
@@ -1757,7 +1499,7 @@ key_cmp_traceback(const traceback_t *traceback1, hash_entry_t *he)
             if (hash1 != hash2)
                 return 0;
 
-            if (STRING_COMPARE(frame1->filename, frame2->filename) != 0)
+            if (PyUnicode_Compare(frame1->filename, frame2->filename) != 0)
                 return 0;
         }
     }
@@ -1777,20 +1519,14 @@ tracemalloc_get_frame(PyFrameObject *pyframe, frame_t *frame)
     code = pyframe->f_code;
     if (code == NULL) {
 #ifdef TRACE_DEBUG
-        tracemalloc_error(
-            "failed to get the code object of "
-            "the a frame (thread %li)",
-            PyThread_get_thread_ident());
+        tracemalloc_error("failed to get the code object of the a frame");
 #endif
         return;
     }
 
     if (code->co_filename == NULL) {
 #ifdef TRACE_DEBUG
-        tracemalloc_error(
-            "failed to get the filename of the code object "
-            "(thread %li)",
-            PyThread_get_thread_ident());
+        tracemalloc_error("failed to get the filename of the code object");
 #endif
         return;
     }
@@ -1798,14 +1534,12 @@ tracemalloc_get_frame(PyFrameObject *pyframe, frame_t *frame)
     filename = code->co_filename;
     assert(filename != NULL);
 
-    if (!STRING_CHECK(filename)) {
+    if (!PyUnicode_CheckExact(filename)) {
 #ifdef TRACE_DEBUG
         tracemalloc_error("filename is not an unicode string");
 #endif
         return;
     }
-
-#ifdef PEP393
     if (!PyUnicode_IS_READY(filename)) {
         /* Don't make a Unicode string ready to avoid reentrant calls
            to tracemalloc_malloc() or tracemalloc_realloc() */
@@ -1814,7 +1548,6 @@ tracemalloc_get_frame(PyFrameObject *pyframe, frame_t *frame)
 #endif
         return;
     }
-#endif
 
     /* intern the filename */
     entry = hash_get_entry(tracemalloc_filenames, filename);
@@ -1868,12 +1601,14 @@ traceback_get_frames(traceback_t *traceback)
     PyThreadState *tstate;
     PyFrameObject *pyframe;
 
+#ifdef WITH_THREAD
     tstate = PyGILState_GetThisThreadState();
+#else
+    tstate = PyThreadState_Get();
+#endif
     if (tstate == NULL) {
 #ifdef TRACE_DEBUG
-        tracemalloc_error(
-            "failed to get the current thread state (thread %li)",
-            PyThread_get_thread_ident());
+        tracemalloc_error("failed to get the current thread state");
 #endif
         return;
     }
@@ -1893,7 +1628,9 @@ traceback_new(void)
     traceback_t *traceback = (traceback_t *)stack_buffer;
     hash_entry_t *entry;
 
+#ifdef WITH_THREAD
     assert(PyGILState_Check());
+#endif
     traceback->nframe = 0;
     assert(tracemalloc_config.max_nframe > 0);
     traceback_get_frames(traceback);
@@ -1959,7 +1696,7 @@ tracemalloc_update_stats(trace_t *trace, int is_alloc)
 
     if (!HASH_GET_DATA(tracemalloc_file_stats, filename, line_hash)) {
         if (!is_alloc) {
-            /* clear_traces() was called or tracemalloc_update_stats() failed
+            /* reset() was called or tracemalloc_update_stats() failed
                to store the allocation */
             return;
         }
@@ -2012,7 +1749,7 @@ tracemalloc_update_stats(trace_t *trace, int is_alloc)
     }
     else {
         if (!is_alloc) {
-            /* clear_traces() was called or tracemalloc_update_stats() failed
+            /* reset() was called or tracemalloc_update_stats() failed
                to store the allocation */
             return;
         }
@@ -2032,7 +1769,7 @@ tracemalloc_normalize_filename(Py_UCS4 ch)
         return SEP;
 #endif
 #ifdef TRACE_CASE_INSENSITIVE
-    ch = CHAR_LOWER(ch);
+    ch = _PyUnicode_ToLowercase(ch);
 #endif
     return ch;
 }
@@ -2040,12 +1777,8 @@ tracemalloc_normalize_filename(Py_UCS4 ch)
 
 typedef struct {
     PyObject *filename, *pattern;
-#ifdef PEP393
     int file_kind, pat_kind;
     void *file_data, *pat_data;
-#else
-    char *file_data, *pat_data;
-#endif
     Py_ssize_t file_len, pat_len;
 } match_t;
 
@@ -2054,27 +1787,26 @@ match_filename_joker(match_t *match, Py_ssize_t file_pos, Py_ssize_t pat_pos)
 {
     Py_UCS4 ch1, ch2;
 
-    while (file_pos < match->file_len && pat_pos < match->pat_len) {
-        ch1 = STRING_READ(match->file_kind, match->file_data, file_pos);
-        ch2 = STRING_READ(match->pat_kind, match->pat_data, pat_pos);
+    assert(pat_pos >= 0);
+
+    while (file_pos >= 0 && pat_pos >= 0) {
+        ch1 = PyUnicode_READ(match->file_kind, match->file_data, file_pos);
+        ch2 = PyUnicode_READ(match->pat_kind, match->pat_data, pat_pos);
         if (ch2 == '*') {
             int found;
 
-            do {
-                pat_pos++;
-                if (pat_pos >= match->pat_len) {
-                    /* 'abc' always match '*' */
-                    return 1;
-                }
-                ch2 = STRING_READ(match->pat_kind, match->pat_data, pat_pos);
-            } while (ch2 == '*');
+            pat_pos--;
+            if (pat_pos < 0) {
+                /* 'abc' always match '*' */
+                return 1;
+            }
 
             do {
                 found = match_filename_joker(match, file_pos, pat_pos);
                 if (found)
                     break;
-                file_pos++;
-            } while (file_pos < match->file_len);
+                file_pos--;
+            } while (file_pos >= 0);
 
             return found;
         }
@@ -2085,71 +1817,64 @@ match_filename_joker(match_t *match, Py_ssize_t file_pos, Py_ssize_t pat_pos)
         if (ch1 != ch2)
             return 0;
 
-        file_pos++;
-        pat_pos++;
+        file_pos--;
+        pat_pos--;
     }
 
-    if (pat_pos != match->pat_len) {
-        if (pat_pos == (match->pat_len - 1)) {
-            ch2 = STRING_READ(match->pat_kind, match->pat_data, pat_pos);
-            if (ch2 == '*') {
-                /* 'abc' matchs 'abc*' */
-                return 1;
-            }
+    if (pat_pos == 0) {
+        ch2 = PyUnicode_READ(match->pat_kind, match->pat_data, pat_pos);
+        if (ch2 == '*') {
+            /* 'abc' matchs '*abc' */
+            return 1;
         }
+    }
+    else if (pat_pos > 0) {
         return 0;
     }
+
+    if (file_pos >= 0)
+        return 0;
+
     return 1;
 }
 
 static int
 filename_endswith_pyc_pyo(PyObject *filename)
 {
-#ifdef PEP393
-    void *data;
+    void* data;
     int kind;
-#elif defined(PYTHON3)
-    Py_UNICODE *data;
-#else
-    char *data;
-#endif
     Py_UCS4 ch;
     Py_ssize_t len;
 
-    len = STRING_LENGTH(filename);
+    len = PyUnicode_GetLength(filename);
     if (len < 4)
         return 0;
 
-#ifdef PEP393
     data = PyUnicode_DATA(filename);
     kind = PyUnicode_KIND(filename);
-#elif defined(PYTHON3)
-    data = PyUnicode_AS_UNICODE(filename);
-#else
-    data = PyString_AS_STRING(filename);
-#endif
 
-    if (STRING_READ(kind, data, len-4) != '.')
-        return 0;
-    ch = STRING_READ(kind, data, len-3);
+    ch = PyUnicode_READ(kind, data, len-1);
 #ifdef TRACE_CASE_INSENSITIVE
-    ch = CHAR_LOWER(ch);
+    ch = _PyUnicode_ToLowercase(ch);
 #endif
-    if (ch != 'p')
+    if ((ch != 'c' && ch != 'o'))
         return 0;
 
-    ch = STRING_READ(kind, data, len-2);
+    ch = PyUnicode_READ(kind, data, len-2);
 #ifdef TRACE_CASE_INSENSITIVE
-    ch = CHAR_LOWER(ch);
+    ch = _PyUnicode_ToLowercase(ch);
 #endif
     if (ch != 'y')
         return 0;
 
-    ch = STRING_READ(kind, data, len-1);
+    ch = PyUnicode_READ(kind, data, len-3);
 #ifdef TRACE_CASE_INSENSITIVE
-    ch = CHAR_LOWER(ch);
+    ch = _PyUnicode_ToLowercase(ch);
 #endif
-    if ((ch != 'c' && ch != 'o'))
+    if (ch != 'p')
+        return 0;
+
+    if (PyUnicode_READ(kind, data, len-4) != '.')
         return 0;
     return 1;
 }
@@ -2161,16 +1886,16 @@ match_filename(filter_t *filter, PyObject *filename)
     match_t match;
     Py_hash_t hash;
 
-#ifdef PEP393
+    assert(filename != NULL);
+
     assert(PyUnicode_IS_READY(filename));
-#endif
 
     if (filename == filter->pattern)
         return 1;
 
     hash = PyObject_Hash(filename);
     if (hash == filter->pattern_hash) {
-        if (STRING_COMPARE(filename, filter->pattern) == 0)
+        if (PyUnicode_Compare(filename, filter->pattern) == 0)
             return 1;
     }
 
@@ -2181,7 +1906,7 @@ match_filename(filter_t *filter, PyObject *filename)
             return 0;
         }
         else {
-            len = STRING_LENGTH(filename);
+            len = PyUnicode_GetLength(filename);
 
             /* don't compare last character */
             return PyUnicode_Tailmatch(filename, filter->pattern,
@@ -2190,26 +1915,22 @@ match_filename(filter_t *filter, PyObject *filename)
     }
 #endif
 
-    len = STRING_LENGTH(filename);
+    len = PyUnicode_GetLength(filename);
 
     /* replace "a.pyc" and "a.pyo" with "a.py" */
     if (filename_endswith_pyc_pyo(filename))
         len--;
 
     match.filename = filename;
-#ifdef PEP393
     match.file_kind = PyUnicode_KIND(match.filename);
-#endif
-    match.file_data = STRING_DATA(match.filename);
+    match.file_data = PyUnicode_DATA(match.filename);
     match.file_len = len;
 
     match.pattern = filter->pattern;
-#ifdef PEP393
     match.pat_kind = PyUnicode_KIND(match.pattern);
-#endif
-    match.pat_data = STRING_DATA(match.pattern);
-    match.pat_len = STRING_LENGTH(match.pattern);
-    return match_filename_joker(&match, 0, 0);
+    match.pat_data = PyUnicode_DATA(match.pattern);
+    match.pat_len = PyUnicode_GET_LENGTH(match.pattern);
+    return match_filename_joker(&match, match.file_len - 1, match.pat_len - 1);
 }
 
 static int
@@ -2221,21 +1942,6 @@ filter_match_filename(filter_t *filter, PyObject *filename)
         return !filter->include;
 
     match = match_filename(filter, filename);
-    return match ^ !filter->include;
-}
-
-static int
-filter_match_lineno(filter_t *filter, int lineno)
-{
-    int match;
-
-    if (filter->lineno < 1)
-        return 1;
-
-    if (lineno < 1)
-        return !filter->include;
-
-    match = (lineno == filter->lineno);
     return match ^ !filter->include;
 }
 
@@ -2260,7 +1966,14 @@ filter_match(filter_t *filter, PyObject *filename, int lineno)
             return 0;
     }
 
-    return filter_match_lineno(filter, lineno);
+    if (filter->lineno < 1)
+        return 1;
+
+    if (lineno < 1)
+        return !filter->include;
+
+    match = (lineno == filter->lineno);
+    return match ^ !filter->include;
 }
 
 static int
@@ -2342,7 +2055,9 @@ tracemalloc_log_alloc(void *ptr, size_t size)
     traceback_t *traceback;
     trace_t trace;
 
+#ifdef WITH_THREAD
     assert(PyGILState_Check());
+#endif
 
     if (tracemalloc_config.max_nframe > 0) {
         traceback = traceback_new();
@@ -2387,7 +2102,7 @@ static void*
 tracemalloc_malloc(void *ctx, size_t size, int gil_held)
 {
     PyMemAllocator *alloc = (PyMemAllocator *)ctx;
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     PyGILState_STATE gil_state;
 #endif
     void *ptr;
@@ -2395,7 +2110,7 @@ tracemalloc_malloc(void *ctx, size_t size, int gil_held)
     if (get_reentrant())
         return alloc->malloc(alloc->ctx, size);
 
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     if (!gil_held) {
         /* PyGILState_Ensure() may call PyMem_RawMalloc() indirectly which
            would call PyGILState_Ensure() if reentrant are not disabled. */
@@ -2408,7 +2123,9 @@ tracemalloc_malloc(void *ctx, size_t size, int gil_held)
     else
 #endif
     {
+#ifdef WITH_THREAD
         assert(gil_held);
+#endif
 
         /* Ignore reentrant call: PyObjet_Malloc() calls PyMem_Malloc() for
            allocations larger than 512 bytes */
@@ -2420,9 +2137,7 @@ tracemalloc_malloc(void *ctx, size_t size, int gil_held)
     if (ptr != NULL)
         tracemalloc_log_alloc(ptr, size);
 
-    task_list_check();
-
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     if (!gil_held)
         PyGILState_Release(gil_state);
 #endif
@@ -2434,7 +2149,7 @@ static void*
 tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
 {
     PyMemAllocator *alloc = (PyMemAllocator *)ctx;
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     PyGILState_STATE gil_state;
 #endif
     void *ptr2;
@@ -2448,7 +2163,7 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
 
 
         if (ptr2 != NULL && ptr != NULL) {
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
             if (!gil_held) {
                 gil_state = PyGILState_Ensure();
             tracemalloc_log_free(ptr);
@@ -2457,7 +2172,9 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
             else
 #endif
             {
+#ifdef WITH_THREAD
                 assert(gil_held);
+#endif
                 tracemalloc_log_free(ptr);
             }
         }
@@ -2465,7 +2182,7 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
         return ptr2;
     }
 
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     if (!gil_held) {
         /* PyGILState_Ensure() may call PyMem_RawMalloc() indirectly which
            would call PyGILState_Ensure() if reentrant are not disabled. */
@@ -2478,7 +2195,9 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
     else
 #endif
     {
+#ifdef WITH_THREAD
         assert(gil_held);
+#endif
 
         /* PyObjet_Realloc() calls PyMem_Realloc() for allocations
            larger than 512 bytes */
@@ -2494,9 +2213,7 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
         tracemalloc_log_alloc(ptr2, new_size);
     }
 
-    task_list_check();
-
-#ifdef TRACE_RAW_MALLOC
+#if defined(TRACE_RAW_MALLOC) && defined(WITH_THREAD)
     if (!gil_held)
         PyGILState_Release(gil_state);
 #endif
@@ -2505,7 +2222,7 @@ tracemalloc_realloc(void *ctx, void *ptr, size_t new_size, int gil_held)
 }
 
 static void
-tracemalloc_free(void *ctx, void *ptr, int gil_held)
+tracemalloc_free(void *ctx, void *ptr)
 {
     PyMemAllocator *alloc = (PyMemAllocator *)ctx;
 
@@ -2516,23 +2233,6 @@ tracemalloc_free(void *ctx, void *ptr, int gil_held)
         alloc->free(alloc->ctx, ptr);
         tracemalloc_log_free(ptr);
     }
-
-    if (gil_held) {
-        /* tracemalloc_task is protected by the GIL */
-        task_list_check();
-    }
-}
-
-static void
-tracemalloc_free_gil(void *ctx, void *ptr)
-{
-    tracemalloc_free(ctx, ptr, 1);
-}
-
-static void
-tracemalloc_raw_free(void *ctx, void *ptr)
-{
-    tracemalloc_free(ctx, ptr, 0);
 }
 
 static void*
@@ -2561,39 +2261,6 @@ tracemalloc_raw_realloc(void *ctx, void *ptr, size_t new_size)
 }
 #endif
 
-#ifdef TRACE_ARENA
-static void*
-tracemalloc_alloc_arena(void *ctx, size_t size)
-{
-    void *ptr;
-
-    ptr = arena_allocator.alloc(ctx, size);
-    if (ptr == NULL)
-        return NULL;
-
-    if (hash_put_data(tracemalloc_arenas, ptr, NULL, 0) == 0) {
-        assert(tracemalloc_arena_size <= PY_SIZE_MAX - size);
-        tracemalloc_arena_size += size;
-    }
-    else {
-#ifdef TRACE_DEBUG
-        tracemalloc_error("alloc_arena: put_data() failed");
-#endif
-    }
-    return ptr;
-}
-
-static void
-tracemalloc_free_arena(void *ctx, void *ptr, size_t size)
-{
-    arena_allocator.free(ctx, ptr, size);
-    if (hash_may_delete_data(tracemalloc_arenas, ptr)) {
-        assert(tracemalloc_arena_size >= size);
-        tracemalloc_arena_size -= size;
-    }
-}
-#endif
-
 static int
 filter_init(filter_t *filter,
             int include, PyObject *pattern, int lineno,
@@ -2602,58 +2269,35 @@ filter_init(filter_t *filter,
     Py_ssize_t len, len2;
     Py_ssize_t i, j;
     PyObject *new_pattern;
-    Py_UCS4 ch;
-#ifdef PEP393
-    Py_UCS4 maxchar;
+    Py_UCS4 maxchar, ch;
     int kind, kind2;
     void *data, *data2;
-#elif defined(PYTHON3)
-    Py_UNICODE *data, *data2;
-#else
-    char *data, *data2;
-#endif
     int previous_joker;
     size_t njoker;
     Py_hash_t pattern_hash;
 
-#ifdef PYTHON3
-    if (!STRING_CHECK(pattern)) {
-        PyErr_Format(PyExc_TypeError,
-                     "filename pattern must be a str, not %s",
+    if (!PyUnicode_Check(pattern)) {
+        PyErr_Format(PyExc_TypeError, "filename_pattern must be a str, not %s",
                      Py_TYPE(pattern)->tp_name);
         return -1;
     }
-#else
-    if (!STRING_CHECK(pattern)) {
-        PyErr_Format(PyExc_TypeError,
-                     "filename pattern must be a str, not %s",
-                     Py_TYPE(pattern)->tp_name);
-        return -1;
-    }
-#endif
 
-#ifdef PEP393
     if (PyUnicode_READY(pattern) < 0)
         return -1;
-#endif
 
-    len = STRING_LENGTH(pattern);
-    data = STRING_DATA(pattern);
-#ifdef PEP393
+    len = PyUnicode_GetLength(pattern);
     kind = PyUnicode_KIND(pattern);
-#endif
+    data = PyUnicode_DATA(pattern);
 
     if (filename_endswith_pyc_pyo(pattern))
         len--;
 
-#ifdef PEP393
     maxchar = 0;
-#endif
     len2 = 0;
     njoker = 0;
     previous_joker = 0;
     for (i=0; i < len; i++) {
-        ch = STRING_READ(kind, data, i);
+        ch = PyUnicode_READ(kind, data, i);
 #ifdef TRACE_NORMALIZE_FILENAME
         ch = tracemalloc_normalize_filename(ch);
 #endif
@@ -2661,9 +2305,7 @@ filter_init(filter_t *filter,
             previous_joker = (ch == '*');
             if (previous_joker)
                 njoker++;
-#ifdef PEP393
             maxchar = Py_MAX(maxchar, ch);
-#endif
             len2++;
         }
         else {
@@ -2677,30 +2319,22 @@ filter_init(filter_t *filter,
         return -1;
     }
 
-#ifdef PEP393
     new_pattern = PyUnicode_New(len2, maxchar);
-#elif defined(PYTHON3)
-    new_pattern = PyUnicode_New(len2);
-#else
-    new_pattern = PyString_FromStringAndSize(NULL, len2);
-#endif
     if (new_pattern == NULL)
         return -1;
-#ifdef PEP393
     kind2 = PyUnicode_KIND(new_pattern);
-#endif
-    data2 = STRING_DATA(new_pattern);
+    data2 = PyUnicode_DATA(new_pattern);
 
     j = 0;
     previous_joker = 0;
     for (i=0; i < len; i++) {
-        ch = STRING_READ(kind, data, i);
+        ch = PyUnicode_READ(kind, data, i);
 #ifdef TRACE_NORMALIZE_FILENAME
         ch = tracemalloc_normalize_filename(ch);
 #endif
         if (!previous_joker || ch != '*') {
             previous_joker = (ch == '*');
-            STRING_WRITE(kind2, data2, j, ch);
+            PyUnicode_WRITE(kind2, data2, j, ch);
             j++;
         }
         else {
@@ -2785,10 +2419,12 @@ traceback_free_cb(hash_entry_t *entry, void *user_data)
 
 /* reentrant flag must be set to call this function and GIL must be held */
 static void
-tracemalloc_clear_traces(void)
+tracemalloc_reset(void)
 {
+#ifdef WITH_THREAD
     /* The GIL protects variables againt concurrent access */
     assert(PyGILState_Check());
+#endif
 
     /* Disable also reentrant calls to tracemalloc_malloc() to not add a new
        trace while we are clearing traces */
@@ -2806,20 +2442,14 @@ tracemalloc_clear_traces(void)
 
     hash_foreach(tracemalloc_filenames, tracemalloc_clear_filename, NULL);
     hash_clear(tracemalloc_filenames);
-
-#ifdef TRACE_ARENA
-    hash_clear(tracemalloc_arenas);
-    tracemalloc_arena_size = 0;
-#endif
 }
 
 static int
 tracemalloc_init(void)
 {
     size_t entry_size;
-#ifdef TRACE_ATFORK
-    int res;
-#endif
+    PyObject *filename;
+    filter_t filter;
 
     /* ensure that the frame_t structure is packed */
     assert(sizeof(frame_t) == (sizeof(PyObject*) + sizeof(int)));
@@ -2827,14 +2457,8 @@ tracemalloc_init(void)
     if (tracemalloc_config.init)
         return 0;
 
-    tracemalloc_tasks = PyList_New(0);
-    if (tracemalloc_tasks == NULL)
-        return -1;
-
     PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &allocators.raw);
-#ifdef TRACE_ARENA
     PyObject_GetArenaAllocator(&arena_allocator);
-#endif
 
 #ifdef REENTRANT_THREADLOCAL
 #ifdef NT_THREADS
@@ -2893,18 +2517,8 @@ tracemalloc_init(void)
                                   sizeof(trace_t),
                                   key_hash_ptr, key_cmp_direct);
 
-#ifdef TRACE_ARENA
-    tracemalloc_arenas = hash_new(&tracemalloc_pools.no_data,
-                                  0,
-                                  key_hash_arena_ptr, key_cmp_direct);
-#endif
-
     if (tracemalloc_filenames == NULL || tracemalloc_tracebacks == NULL
-        || tracemalloc_file_stats == NULL || tracemalloc_traces == NULL
-#ifdef TRACE_ARENA
-        || tracemalloc_arenas == NULL
-#endif
-        )
+        || tracemalloc_file_stats == NULL || tracemalloc_traces == NULL)
     {
         PyErr_NoMemory();
         return -1;
@@ -2918,17 +2532,6 @@ tracemalloc_init(void)
     tracemalloc_tracebacks->name = "tracebacks";
     tracemalloc_file_stats->name = "file_stats";
     tracemalloc_traces->name = "traces";
-#ifdef TRACE_ARENA
-    tracemalloc_arenas->name = "arenas";
-#endif
-#endif
-
-#ifdef TRACE_ATFORK
-    res = pthread_atfork(NULL, NULL, tracemalloc_atfork);
-    if (res != 0) {
-        PyErr_SetFromErrno(PyExc_OSError);
-        return -1;
-    }
 #endif
 
     tracemalloc_empty_traceback.nframe = 0;
@@ -2937,6 +2540,19 @@ tracemalloc_init(void)
     /* disable tracing allocations until tracemalloc is fully initialized */
     set_reentrant(1);
 
+    /* by default, exclude tracemalloc.py */
+#ifdef MS_WINDOWS
+    filename = PyUnicode_FromString("*\\tracemalloc.py");
+#else
+    filename = PyUnicode_FromString("*/tracemalloc.py");
+#endif
+    if (filename == NULL)
+        return -1;
+    if (filter_init(&filter, 0, filename, -1, 0) < 0)
+        return -1;
+    if (tracemalloc_add_filter(&filter) < 0)
+        return -1;
+
     tracemalloc_config.init = 1;
     return 0;
 }
@@ -2944,7 +2560,6 @@ tracemalloc_init(void)
 static void
 tracemalloc_deinit(void)
 {
-    int err;
 #if defined(REENTRANT_THREADLOCAL) && !defined(NDEBUG)
 #ifdef NT_THREADS
     BOOL res;
@@ -2957,21 +2572,15 @@ tracemalloc_deinit(void)
         return;
     tracemalloc_config.init = 0;
 
-    err = tracemalloc_disable();
-    assert(err == 0);
+    tracemalloc_disable();
 
     tracemalloc_clear_filters();
-
-    Py_CLEAR(tracemalloc_tasks);
 
     /* destroy hash tables */
     hash_destroy(tracemalloc_file_stats);
     hash_destroy(tracemalloc_traces);
     hash_destroy(tracemalloc_tracebacks);
     hash_destroy(tracemalloc_filenames);
-#ifdef TRACE_ARENA
-    hash_destroy(tracemalloc_arenas);
-#endif
 
 #ifdef USE_MEMORY_POOL
     pool_clear(&tracemalloc_pools.no_data);
@@ -3013,9 +2622,6 @@ static int
 tracemalloc_enable(void)
 {
     PyMemAllocator alloc;
-#ifdef TRACE_ARENA
-    PyObjectArenaAllocator arena_hook;
-#endif
 
     if (tracemalloc_init() < 0)
         return -1;
@@ -3027,14 +2633,11 @@ tracemalloc_enable(void)
 
     tracemalloc_traced_memory = 0;
     tracemalloc_max_traced_memory = 0;
-#ifdef TRACE_ARENA
-    tracemalloc_arena_size = 0;
-#endif
 
 #ifdef TRACE_RAW_MALLOC
     alloc.malloc = tracemalloc_raw_malloc;
     alloc.realloc = tracemalloc_raw_realloc;
-    alloc.free = tracemalloc_raw_free;
+    alloc.free = tracemalloc_free;
 
     alloc.ctx = &allocators.raw;
     PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &allocators.raw);
@@ -3043,7 +2646,7 @@ tracemalloc_enable(void)
 
     alloc.malloc = tracemalloc_malloc_gil;
     alloc.realloc = tracemalloc_realloc_gil;
-    alloc.free = tracemalloc_free_gil;
+    alloc.free = tracemalloc_free;
 
     alloc.ctx = &allocators.mem;
     PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &allocators.mem);
@@ -3053,13 +2656,6 @@ tracemalloc_enable(void)
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &allocators.obj);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
-#ifdef TRACE_ARENA
-    arena_hook.ctx = &arena_allocator;
-    arena_hook.alloc = tracemalloc_alloc_arena;
-    arena_hook.free = tracemalloc_free_arena;
-    PyObject_SetArenaAllocator(&arena_hook);
-#endif
-
     /* every is ready: start tracing Python memory allocations */
     set_reentrant(0);
 
@@ -3067,16 +2663,11 @@ tracemalloc_enable(void)
     return 0;
 }
 
-static int
+static void
 tracemalloc_disable(void)
 {
-    int err;
-
     if (!tracemalloc_config.enabled)
-        return 0;
-
-    /* cancel all scheduled tasks */
-    err = task_list_clear();
+        return;
 
     /* stop tracing Python memory allocations */
     set_reentrant(1);
@@ -3090,36 +2681,10 @@ tracemalloc_disable(void)
     PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &allocators.mem);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &allocators.obj);
 
-#ifdef TRACE_ARENA
-    PyObject_SetArenaAllocator(&arena_allocator);
-#endif
-
     /* release memory */
-    tracemalloc_clear_traces();
-    return err;
+    tracemalloc_reset();
 }
 
-#ifdef TRACE_ATFORK
-static void
-tracemalloc_atfork(void)
-{
-    int err;
-
-    PyGILState_STATE gil_state;
-
-    if (!tracemalloc_config.enabled)
-        return;
-
-    /* fork() can be called with the GIL released */
-    set_reentrant(1);
-    gil_state = PyGILState_Ensure();
-    set_reentrant(0);
-
-    err = tracemalloc_disable();
-    assert(err == 0);
-    PyGILState_Release(gil_state);
-}
-#endif
 
 typedef struct {
     pool_t pool;
@@ -3240,7 +2805,9 @@ tracemalloc_parse_filename(PyObject* arg, void* addr)
     if (arg == Py_None) {
         filename = NULL;
     }
-    else if (STRING_CHECK(arg)) {
+    else if (PyUnicode_Check(arg)) {
+        if (PyUnicode_READY(arg) < 0)
+            return 1;
         filename = arg;
     }
     else {
@@ -3272,7 +2839,7 @@ tracemalloc_parse_lineno(PyObject* arg, void* addr)
 static int
 pyfilter_init(FilterObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"include", "filename", "lineno", "traceback", 0};
+    static char *kwlist[] = {"include", "filename_pattern", "lineno", "traceback", 0};
     int include;
     PyObject *filename;
     int lineno = -1;
@@ -3347,6 +2914,9 @@ parse_traceback(PyObject *pytraceback,
 
         filename = PyTuple_GET_ITEM(pyframe, 0);
         assert(filename != NULL);
+        if (tracemalloc_parse_filename(filename, &filename) != 1)
+            return -1;
+
         pylineno = PyTuple_GET_ITEM(pyframe, 1);
         assert(pylineno != NULL);
         if (tracemalloc_parse_lineno(pylineno, &lineno) == 0)
@@ -3394,21 +2964,6 @@ pyfilter_match_filename(PyObject *self, PyObject *args)
     return PyBool_FromLong(match);
 }
 
-static PyObject*
-pyfilter_match_lineno(PyObject *self, PyObject *args)
-{
-    FilterObject *pyfilter = (FilterObject *)self;
-    int lineno;
-    int match;
-
-    if (!PyArg_ParseTuple(args, "O&:match_lineno",
-                          tracemalloc_parse_lineno, &lineno))
-        return NULL;
-
-    match = filter_match_lineno(&pyfilter->filter, lineno);
-    return PyBool_FromLong(match);
-}
-
 static PyObject *
 pyfilter_get_include(FilterObject *self, void *closure)
 {
@@ -3416,7 +2971,7 @@ pyfilter_get_include(FilterObject *self, void *closure)
 }
 
 static PyObject *
-pyfilter_get_pattern(FilterObject *self, void *closure)
+pyfilter_get_filename_pattern(FilterObject *self, void *closure)
 {
     Py_INCREF(self->filter.pattern);
     return self->filter.pattern;
@@ -3458,7 +3013,7 @@ filter_compare(filter_t *f1, filter_t *f2)
         return 0;
     if (f1->traceback != f2->traceback)
         return 0;
-    if (STRING_COMPARE(f1->pattern, f2->pattern) != 0)
+    if (PyUnicode_Compare(f1->pattern, f2->pattern) != 0)
         return 0;
 #ifndef TRACE_NORMALIZE_FILENAME
     assert(f1->use_joker == f2->use_joker);
@@ -3497,15 +3052,14 @@ pyfilter_richcompare(FilterObject *self, FilterObject *other, int op)
         return res;
     }
     else {
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
+        Py_RETURN_NOTIMPLEMENTED;
     }
 }
 
 static PyGetSetDef pyfilter_getset[] = {
     {"include", (getter) pyfilter_get_include, NULL,
      "Include or exclude the trace?"},
-    {"pattern", (getter) pyfilter_get_pattern, NULL,
+    {"filename_pattern", (getter) pyfilter_get_filename_pattern, NULL,
      "Pattern matching a filename, can contain one "
      "or many '*' joker characters"},
     {"lineno", (getter) pyfilter_get_lineno, NULL,
@@ -3516,23 +3070,20 @@ static PyGetSetDef pyfilter_getset[] = {
 };
 
 static PyMethodDef pyfilter_methods[] = {
-    {"match", (PyCFunction)pyfilter_match,
+    {"_match", (PyCFunction)pyfilter_match,
      METH_VARARGS,
-     PyDoc_STR("match(filename: str, lineno: int) -> bool")},
-    {"match_traceback", (PyCFunction)pyfilter_match_traceback,
+     PyDoc_STR("_match(filename: str, lineno: int) -> bool")},
+    {"_match_traceback", (PyCFunction)pyfilter_match_traceback,
      METH_VARARGS,
-     PyDoc_STR("match_traceback(traceback) -> bool")},
-    {"match_filename", (PyCFunction)pyfilter_match_filename,
+     PyDoc_STR("_match_traceback(traceback) -> bool")},
+    {"_match_filename", (PyCFunction)pyfilter_match_filename,
      METH_VARARGS,
-     PyDoc_STR("match_filename(filename: str) -> bool")},
-    {"match_lineno", (PyCFunction)pyfilter_match_lineno,
-     METH_VARARGS,
-     PyDoc_STR("match_lineno(lineno: int) -> bool")},
+     PyDoc_STR("_match_filename(filename: str) -> bool")},
     {NULL,              NULL}           /* sentinel */
 };
 
 PyDoc_STRVAR(pyfilter_doc,
-"Filter(include: bool, filename: str, lineno: int=None, traceback: bool=False)");
+"Filter(include: bool, filename_pattern: str, lineno: int=None, traceback: bool=False)");
 
 static PyTypeObject FilterType = {
     /* The ob_type field must be initialized in the module init function
@@ -3580,508 +3131,11 @@ static PyTypeObject FilterType = {
     0,                          /*tp_is_gc*/
 };
 
-typedef struct {
-    PyObject_HEAD
-    task_t task;
-} TaskObject;
-
-/* Forward declaration */
-static PyTypeObject TaskType;
-
-static PyObject*
-pytask_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-    TaskObject *op;
-
-    op = (TaskObject *)type->tp_alloc(type, 0);
-    if (op == NULL)
-        return NULL;
-
-    task_init(&op->task);
-    return (PyObject *)op;
-}
-
-static int
-pytask_init(TaskObject *self, PyObject *args, PyObject *kwargs)
-{
-    PyObject *func, *func_args;
-    Py_ssize_t narg;
-
-    narg = PyTuple_GET_SIZE(args);
-    if (narg == 0) {
-        PyErr_SetString(PyExc_ValueError, "missing func parameter");
-        return -1;
-    }
-
-    func = PyTuple_GET_ITEM(args, 0);
-    if (!PyCallable_Check(func)) {
-        PyErr_Format(PyExc_TypeError,
-                     "func must be a callable object, not %s",
-                     Py_TYPE(func)->tp_name);
-        return -1;
-    }
-
-    func_args = PyTuple_GetSlice(args, 1, narg);
-    if (func_args == NULL)
-        return -1;
-
-    Py_INCREF(func);
-    self->task.func = func;
-    self->task.func_args = func_args;
-    Py_XINCREF(kwargs);
-    self->task.func_kwargs = kwargs;
-
-    self->task.ncall = -1;
-    return 0;
-}
-
-static PyObject *
-pytask_is_scheduled(TaskObject *self)
-{
-    int scheduled = PySequence_Contains(tracemalloc_tasks, (PyObject*)self);
-    if (scheduled == -1)
-        return NULL;
-    return PyBool_FromLong(scheduled);
-}
-
-static PyObject *
-pytask_get_func(TaskObject *self, void *closure)
-{
-    Py_INCREF(self->task.func);
-    return self->task.func;
-}
-
-static int
-pytask_set_func(TaskObject *self, PyObject *func)
-{
-    if (!PyCallable_Check(func)) {
-        PyErr_Format(PyExc_TypeError,
-                     "func must be a callable object, not %s",
-                     Py_TYPE(func)->tp_name);
-        return -1;
-    }
-
-    Py_DECREF(self->task.func);
-    Py_INCREF(func);
-    self->task.func = func;
-    return 0;
-}
-
-static int
-pytask_set_func_args(TaskObject *self, PyObject *func_args)
-{
-    if (!PyTuple_Check(func_args)) {
-        PyErr_Format(PyExc_TypeError,
-                     "func_args must be a tuple, not %s",
-                     Py_TYPE(func_args)->tp_name);
-        return -1;
-    }
-
-    Py_DECREF(self->task.func_args);
-    Py_INCREF(func_args);
-    self->task.func_args = func_args;
-    return 0;
-}
-
-static PyObject *
-pytask_get_func_args(TaskObject *self, void *closure)
-{
-    Py_INCREF(self->task.func_args);
-    return self->task.func_args;
-}
-
-static PyObject *
-pytask_get_func_kwargs(TaskObject *self, void *closure)
-{
-    if (self->task.func_kwargs) {
-        Py_INCREF(self->task.func_kwargs);
-        return self->task.func_kwargs;
-    }
-    else
-        Py_RETURN_NONE;
-}
-
-static int
-pytask_set_func_kwargs(TaskObject *self, PyObject *func_kwargs)
-{
-    if (!PyDict_Check(func_kwargs) && func_kwargs != Py_None) {
-        PyErr_Format(PyExc_TypeError,
-                     "func_kwargs must be a dict or None, not %s",
-                     Py_TYPE(func_kwargs)->tp_name);
-        return -1;
-    }
-
-    Py_DECREF(self->task.func_kwargs);
-    Py_INCREF(func_kwargs);
-    self->task.func_kwargs = func_kwargs;
-    return 0;
-}
-
-static int
-pytask_reschedule(TaskObject *self)
-{
-    int scheduled;
-
-    if (!tracemalloc_config.enabled) {
-        /* a task cannot be scheduled if the tracemalloc module is disabled */
-        return 0;
-    }
-
-    /* task_call_later() may have scheduled a call to the task: ensure
-       that the pending call list is empty */
-    if (Py_MakePendingCalls() < 0)
-        return -1;
-
-    set_reentrant(1);
-    scheduled = PySequence_Contains(tracemalloc_tasks, (PyObject*)self);
-    set_reentrant(0);
-    if (scheduled == -1)
-        return -1;
-
-    if (scheduled == 1)
-        task_reschedule(&self->task);
-
-    return 0;
-}
-
-static Py_ssize_t
-pyobj_as_ssize_t(PyObject *obj)
-{
-#ifndef PYTHON3
-    if (PyInt_Check(obj))
-        return PyInt_AsSsize_t(obj);
-    else
-#endif
-    if (PyLong_Check(obj)) {
-        return PyLong_AsSsize_t(obj);
-    }
-    else {
-        PyErr_Format(PyExc_TypeError, "expect a long, got %s",
-                     Py_TYPE(obj)->tp_name);
-        return -1;
-    }
-}
-
-static PyObject *
-pytask_schedule(TaskObject *self, PyObject *args)
-{
-    PyObject *repeat_obj = Py_None;
-    Py_ssize_t repeat;
-    int scheduled;
-
-    if (!PyArg_ParseTuple(args, "|O:schedule",
-                          &repeat_obj))
-        return NULL;
-
-    if (repeat_obj != Py_None) {
-        repeat = pyobj_as_ssize_t(repeat_obj);
-        if (repeat == -1 && PyErr_Occurred())
-            return NULL;
-        if (repeat <= 0) {
-            PyErr_SetString(PyExc_ValueError,
-                            "repeat must be positive or None");
-            return NULL;
-        }
-    }
-    else
-        repeat = -1;
-
-    if (!tracemalloc_config.enabled) {
-        PyErr_SetString(PyExc_RuntimeError,
-                        "the tracemalloc module must be enabled "
-                        "to schedule a task");
-        return NULL;
-    }
-
-    if (self->task.delay <= 0 && self->task.memory_threshold <= 0) {
-        PyErr_SetString(PyExc_ValueError,
-                        "delay and memory_threshold are None");
-        return NULL;
-    }
-
-    scheduled = PySequence_Contains(tracemalloc_tasks, (PyObject*)self);
-    if (scheduled == -1)
-        return NULL;
-    if (!scheduled) {
-        if (PyList_Append(tracemalloc_tasks, (PyObject *)self) < 0)
-            return NULL;
-
-        self->task.ncall = repeat;
-        task_schedule(&self->task);
-    }
-    else {
-        if (pytask_reschedule(self) < 0)
-            return NULL;
-    }
-
-    Py_RETURN_NONE;
-}
-
-static PyObject *
-pytask_cancel(TaskObject *self)
-{
-    PyObject *res;
-#ifdef PEP393
-    _Py_IDENTIFIER(remove);
-
-    res = _PyObject_CallMethodId(tracemalloc_tasks, &PyId_remove, "O", self);
-#else
-    res = PyObject_CallMethod(tracemalloc_tasks, "remove", "O", self);
-#endif
-    if (res == NULL) {
-        if (!PyErr_ExceptionMatches(PyExc_ValueError))
-            return NULL;
-        /* task not scheduled: ignore the error */
-        PyErr_Clear();
-    }
-    else
-        Py_DECREF(res);
-
-    task_cancel(&self->task);
-
-    Py_RETURN_NONE;
-}
-
-static PyObject *
-pytask_call(TaskObject *self)
-{
-    return task_call(&self->task);
-}
-
-static PyObject *
-pytask_get_delay(TaskObject *self)
-{
-    if (self->task.delay > 0)
-        return PyLong_FromLong(self->task.delay);
-    else
-        Py_RETURN_NONE;
-}
-
-static PyObject*
-pytask_set_delay(TaskObject *self, PyObject *delay_obj)
-{
-    int delay;
-
-    if (delay_obj != Py_None) {
-        delay = _PyLong_AsInt(delay_obj);
-        if (delay == -1 && PyErr_Occurred())
-            return NULL;
-        if (delay <= 0) {
-            PyErr_SetString(PyExc_ValueError,
-                            "delay must be positive or None");
-            return NULL;
-        }
-    }
-    else
-        delay = -1;
-
-    self->task.delay = delay;
-    if (pytask_reschedule(self) < 0)
-        return NULL;
-
-    Py_RETURN_NONE;
-}
-
-static PyObject *
-pytask_get_memory_threshold(TaskObject *self)
-{
-    if (self->task.memory_threshold > 0)
-        return PyLong_FromSsize_t(self->task.memory_threshold);
-    else
-        Py_RETURN_NONE;
-}
-
-static PyObject*
-pytask_set_memory_threshold(TaskObject *self, PyObject *threshold_obj)
-{
-    Py_ssize_t memory_threshold;
-
-    if (threshold_obj != Py_None) {
-        memory_threshold = pyobj_as_ssize_t(threshold_obj);
-        if (memory_threshold == -1 && PyErr_Occurred())
-            return NULL;
-        if (memory_threshold <= 0) {
-            PyErr_SetString(PyExc_ValueError,
-                            "size must be greater than zero "
-                            "or None");
-            return NULL;
-        }
-    }
-    else
-        memory_threshold = -1;
-
-    self->task.memory_threshold = memory_threshold;
-    if (pytask_reschedule(self) < 0)
-        return NULL;
-
-    Py_RETURN_NONE;
-}
-
-static PyObject*
-pytask_repr(TaskObject *self)
-{
-    return PyUnicode_FromFormat("<tracemalloc.Task %R>",
-                                self->task.func);
-}
-
-static void
-pytask_dealloc(TaskObject *self)
-{
-    assert(tracemalloc_tasks == NULL
-           || PySequence_Contains(tracemalloc_tasks, (PyObject*)self) == 0);
-
-    Py_CLEAR(self->task.func);
-    Py_CLEAR(self->task.func_args);
-    Py_CLEAR(self->task.func_kwargs);
-
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyGetSetDef tracemalloc_pytask_getset[] = {
-    {"func",
-     (getter)pytask_get_func, (setter)pytask_set_func,
-     "Function"},
-    {"func_args",
-     (getter)pytask_get_func_args, (setter)pytask_set_func_args,
-     "Function arguments"},
-    {"func_kwargs",
-     (getter)pytask_get_func_kwargs, (setter)pytask_set_func_kwargs,
-     "Function keyword arguments"},
-    {NULL}
-};
-
-static PyMethodDef tracemalloc_pytask_methods[] = {
-    {"call", (PyCFunction)pytask_call,
-     METH_NOARGS,
-     PyDoc_STR("call()")},
-    {"is_scheduled", (PyCFunction)pytask_is_scheduled,
-     METH_NOARGS,
-     PyDoc_STR("is_enabled()")},
-    {"schedule", (PyCFunction)pytask_schedule,
-     METH_VARARGS,
-     PyDoc_STR("schedule(repeat: int=None)")},
-    {"cancel", (PyCFunction)pytask_cancel,
-     METH_NOARGS,
-     PyDoc_STR("cancel()")},
-    {"get_delay", (PyCFunction)pytask_get_delay,
-     METH_NOARGS,
-     PyDoc_STR("get_delay()->int|None")},
-    {"set_delay", (PyCFunction)pytask_set_delay,
-     METH_O,
-     PyDoc_STR("set_delay(seconds: int)")},
-    {"get_memory_threshold", (PyCFunction)pytask_get_memory_threshold,
-     METH_NOARGS,
-     PyDoc_STR("get_memory_threshold()->int|None")},
-    {"set_memory_threshold", (PyCFunction)pytask_set_memory_threshold,
-     METH_O,
-     PyDoc_STR("set_memory_threshold(size: int)")},
-    {NULL,              NULL}           /* sentinel */
-};
-
-PyDoc_STRVAR(tracemalloc_pytask_doc,
-"Task(func, *args, **kw)");
-
-static PyTypeObject TaskType = {
-    /* The ob_type field must be initialized in the module init function
-     * to be portable to Windows without using C++. */
-    PyVarObject_HEAD_INIT(NULL, 0)
-    "tracemalloc.Task",         /*tp_name*/
-    sizeof(TaskObject),         /*tp_basicsize*/
-    0,                          /*tp_itemsize*/
-    /* methods */
-    (destructor)pytask_dealloc, /*tp_dealloc*/
-    0,                          /*tp_print*/
-    0,                          /*tp_getattr*/
-    0,                          /*tp_setattr*/
-    0,                          /*tp_reserved*/
-    (reprfunc)pytask_repr,      /*tp_repr*/
-    0,                          /*tp_as_number*/
-    0,                          /*tp_as_sequence*/
-    0,                          /*tp_as_mapping*/
-    0,                          /*tp_hash*/
-    0,                          /*tp_call*/
-    0,                          /*tp_str*/
-    0,                          /*tp_getattro*/
-    0,                          /*tp_setattro*/
-    0,                          /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-    tracemalloc_pytask_doc,     /*tp_doc*/
-    0,                          /*tp_traverse*/
-    0,                          /*tp_clear*/
-    0,                          /*tp_richcompare*/
-    0,                          /*tp_weaklistoffset*/
-    0,                          /*tp_iter*/
-    0,                          /*tp_iternext*/
-    tracemalloc_pytask_methods, /*tp_methods*/
-    0,                          /*tp_members*/
-    tracemalloc_pytask_getset,  /*tp_getset*/
-    0,                          /*tp_base*/
-    0,                          /*tp_dict*/
-    0,                          /*tp_descr_get*/
-    0,                          /*tp_descr_set*/
-    0,                          /*tp_dictoffset*/
-    (initproc)pytask_init,      /*tp_init*/
-    PyType_GenericAlloc,        /*tp_alloc*/
-    pytask_new,                 /*tp_new*/
-    PyObject_Del,               /*tp_free*/
-    0,                          /*tp_is_gc*/
-};
-
-static void
-task_list_check(void)
-{
-    Py_ssize_t i, len;
-    TaskObject *obj;
-    int res, reset_reentrant;
-
-    len = PyList_GET_SIZE(tracemalloc_tasks);
-    for (i=0; i<len; i++) {
-        obj = (TaskObject *)PyList_GET_ITEM(tracemalloc_tasks, i);
-        if (obj->task.enabled)
-            task_check(&obj->task);
-    }
-
-    reset_reentrant = 0;
-    for (i=len-1; i>=0; i--) {
-        obj = (TaskObject *)PyList_GET_ITEM(tracemalloc_tasks, i);
-        if (!obj->task.failed)
-            continue;
-
-        if (!reset_reentrant) {
-            /* the list may be reallocated to be shrinked */
-            set_reentrant(1);
-            reset_reentrant = 1;
-        }
-
-        res = PyList_SetSlice(tracemalloc_tasks, i, i+1, NULL);
-        if (res < 0) {
-            PyErr_WriteUnraisable(NULL);
-            break;
-        }
-    }
-    if (reset_reentrant)
-        set_reentrant(0);
-}
-
-static int
-task_list_clear(void)
-{
-    Py_ssize_t len;
-    int res;
-
-    /* task_call_later() may have scheduled calls to a task which will be
-       destroyed: ensure that the pending call list is empty */
-    if (Py_MakePendingCalls() < 0)
-        return -1;
-
-    len = PyList_GET_SIZE(tracemalloc_tasks);
-
-    set_reentrant(1);
-    res = PyList_SetSlice(tracemalloc_tasks, 0, len, NULL);
-    set_reentrant(0);
-
-    return res;
-}
+PyDoc_STRVAR(tracemalloc_is_enabled_doc,
+    "is_enabled()->bool\n"
+    "\n"
+    "True if the tracemalloc module is tracing Python memory allocations,\n"
+    "False otherwise.");
 
 static PyObject*
 py_tracemalloc_is_enabled(PyObject *self)
@@ -4089,34 +3143,33 @@ py_tracemalloc_is_enabled(PyObject *self)
     return PyBool_FromLong(tracemalloc_config.enabled);
 }
 
-PyDoc_STRVAR(tracemalloc_clear_traces_doc,
-    "clear_traces()\n"
+PyDoc_STRVAR(tracemalloc_reset_doc,
+    "reset()\n"
     "\n"
-    "Clear all traces and statistics of memory allocations.");
+    "Clear all traces and statistics of Python memory allocations.");
 
 static PyObject*
-py_tracemalloc_clear_traces(PyObject *self)
+py_tracemalloc_reset(PyObject *self)
 {
     if (!tracemalloc_config.enabled)
         Py_RETURN_NONE;
 
     set_reentrant(1);
-    tracemalloc_clear_traces();
+    tracemalloc_reset();
     set_reentrant(0);
 
     Py_RETURN_NONE;
 }
 
 PyDoc_STRVAR(tracemalloc_get_stats_doc,
-"get_stats() -> dict\n"
-"\n"
-"Get statistics on Python memory allocations per Python filename and per\n"
-"line number.\n"
-"\n"
-"Return a dictionary {filename: str -> {line_number: int -> stats}}\n"
-"where stats in a (size: int, count: int) tuple.\n"
-"\n"
-"Return an empty dictionary if the module tracemalloc is disabled.");
+    "get_stats() -> dict\n"
+    "\n"
+    "Get statistics on traced Python memory blocks as a dictionary\n"
+    "{filename (str): {line_number (int): stats}}\n"
+    "where stats in a (size: int, count: int) tuple,\n"
+    "filename and line_number can be None.\n"
+    "\n"
+    "Return an empty dictionary if the module tracemalloc is disabled.");
 
 static PyObject*
 tracemalloc_get_stats(PyObject *self)
@@ -4301,11 +3354,15 @@ tracemalloc_pyobject_decref_cb(hash_entry_t *entry, void *user_data)
 }
 
 PyDoc_STRVAR(tracemalloc_get_traces_doc,
-"get_stats() -> dict\n"
-"\n"
-"Get all traces of allocated Python memory blocks.\n"
-"Return a dictionary: {pointer: int -> trace: structseq).\n"
-"Return an empty dictionary if the tracemalloc module is disabled.");
+    "get_traces() -> dict\n"
+    "\n"
+    "Get traces of all memory blocks allocated by Python.\n"
+    "Return a dictionary: {address (int): trace},\n"
+    "trace is a (size: int, traceback) tuple,\n"
+    "traceback is a tuple of (filename: str, lineno: int) tuples,\n"
+    "filename and lineno can be None.\n"
+    "\n"
+    "Return an empty dictionary if the tracemalloc module is disabled.");
 
 static PyObject*
 py_tracemalloc_get_traces(PyObject *self, PyObject *obj)
@@ -4327,7 +3384,7 @@ py_tracemalloc_get_traces(PyObject *self, PyObject *obj)
 
     get_traces.tracebacks = hash_new(&get_traces.tracebacks_pool,
                                      sizeof(PyObject *),
-                                     key_hash_int, key_cmp_direct);
+                                     key_hash_ptr, key_cmp_direct);
     if (get_traces.tracebacks == NULL) {
         PyErr_NoMemory();
         goto error;
@@ -4385,10 +3442,10 @@ tracemalloc_get_object_address(PyObject *obj)
 }
 
 PyDoc_STRVAR(tracemalloc_get_object_address_doc,
-"get_object_address(obj) -> int\n"
-"\n"
-"Return the address of the memory block of the specified\n"
-"Python object.");
+    "get_object_address(obj) -> int\n"
+    "\n"
+    "Get the address of the main memory block of the specified\n"
+    "Python object.");
 
 static PyObject*
 py_tracemalloc_get_object_address(PyObject *self, PyObject *obj)
@@ -4417,9 +3474,15 @@ tracemalloc_get_trace(void *ptr)
 }
 
 PyDoc_STRVAR(tracemalloc_get_trace_doc,
-"get_trace(address) -> trace\n"
-"\n"
-"Get the trace of the Python memory block allocated at specified address.");
+    "get_trace(address)\n"
+    "\n"
+    "Get the trace of a memory block allocated by Python.\n"
+    "Return a tuple: (size: int, traceback),\n"
+    "traceback is a tuple of (filename: str, lineno: int) tuples,\n"
+    "filename and lineno can be None.\n"
+    "\n"
+    "Return None if the tracemalloc module did not trace\n"
+    "the allocation of the memory block.");
 
 static PyObject*
 py_tracemalloc_get_trace(PyObject *self, PyObject *obj)
@@ -4432,11 +3495,10 @@ py_tracemalloc_get_trace(PyObject *self, PyObject *obj)
 }
 
 PyDoc_STRVAR(tracemalloc_get_object_trace_doc,
-"get_object_trace(obj) -> trace\n"
-"\n"
-"Get the trace of the Python object 'obj' as trace structseq.\n"
-"Return None if tracemalloc module did not save the location\n"
-"when the object was allocated, for example if tracemalloc was disabled.");
+    "get_object_trace(obj)\n"
+    "\n"
+    "Get the trace of a Python object.\n"
+    "The result type is the same than get_trace() result type.");
 
 static PyObject*
 py_tracemalloc_get_object_trace(PyObject *self, PyObject *obj)
@@ -4489,44 +3551,6 @@ done:
     return ret;
 }
 
-PyDoc_STRVAR(tracemalloc_cancel_tasks_doc,
-    "cancel_tasks()\n"
-    "\n"
-    "Stop scheduled tasks.");
-
-PyObject*
-tracemalloc_cancel_tasks(PyObject *module)
-{
-    int res;
-
-    res = task_list_clear();
-    if (res < 0)
-        return NULL;
-
-    Py_RETURN_NONE;
-}
-
-PyDoc_STRVAR(tracemalloc_get_tasks_doc,
-    "get_tasks()\n"
-    "\n"
-    "Get the list of scheduled tasks.");
-
-PyObject*
-tracemalloc_get_tasks(PyObject *module)
-{
-    PyObject *list;
-
-    list = PyList_New(0);
-    if (list == NULL)
-        return NULL;
-
-    if (_PyList_Extend((PyListObject*)list, tracemalloc_tasks) < 0) {
-        Py_DECREF(list);
-        return NULL;
-    }
-    return list;
-}
-
 PyDoc_STRVAR(tracemalloc_enable_doc,
     "enable()\n"
     "\n"
@@ -4549,16 +3573,16 @@ PyDoc_STRVAR(tracemalloc_disable_doc,
 static PyObject*
 py_tracemalloc_disable(PyObject *self)
 {
-    if (tracemalloc_disable() < 0)
-        return NULL;
-
+    tracemalloc_disable();
     Py_RETURN_NONE;
 }
 
 static PyObject*
 tracemalloc_atexit(PyObject *self)
 {
+#ifdef WITH_THREAD
     assert(PyGILState_Check());
+#endif
     tracemalloc_deinit();
     Py_RETURN_NONE;
 }
@@ -4566,8 +3590,7 @@ tracemalloc_atexit(PyObject *self)
 PyDoc_STRVAR(tracemalloc_get_traceback_limit_doc,
     "get_traceback_limit() -> int\n"
     "\n"
-    "Get the maximum number of frames stored in a trace of a memory\n"
-    "allocation.");
+    "Get the maximum number of frames stored in the traceback of a trace.");
 
 static PyObject*
 py_tracemalloc_get_traceback_limit(PyObject *self)
@@ -4578,11 +3601,7 @@ py_tracemalloc_get_traceback_limit(PyObject *self)
 PyDoc_STRVAR(tracemalloc_set_traceback_limit_doc,
     "set_traceback_limit(nframe: int)\n"
     "\n"
-    "Set the maximum number of frames stored in the traceback attribute\n"
-    "of a trace of a memory allocation.\n"
-    "\n"
-    "If the tracemalloc is enabled, all traces and statistics of memory\n"
-    "allocations are cleared.");
+    "Set the maximum number of frames stored in the traceback of a trace.");
 
 static PyObject*
 tracemalloc_set_traceback_limit(PyObject *self, PyObject *args)
@@ -4607,7 +3626,8 @@ tracemalloc_set_traceback_limit(PyObject *self, PyObject *args)
 PyDoc_STRVAR(tracemalloc_get_tracemalloc_memory_doc,
     "get_tracemalloc_memory() -> int\n"
     "\n"
-    "Get the memory usage in bytes of the _tracemalloc module.");
+    "Get the memory usage in bytes of the tracemalloc module\n"
+    "used internally to trace memory allocations.");
 
 static PyObject*
 tracemalloc_get_tracemalloc_memory(PyObject *self)
@@ -4620,9 +3640,6 @@ tracemalloc_get_tracemalloc_memory(PyObject *self)
 #ifdef PRINT_STATS
     hash_print_stats(tracemalloc_filenames);
     hash_print_stats(tracemalloc_tracebacks);
-#ifdef TRACE_ARENA
-    hash_print_stats(tracemalloc_arenas);
-#endif
     TABLES_LOCK();
     hash_print_stats(tracemalloc_traces);
     hash_print_stats(tracemalloc_file_stats);
@@ -4638,9 +3655,6 @@ tracemalloc_get_tracemalloc_memory(PyObject *self)
     /* hash tables */
     hash_mem_stats(tracemalloc_tracebacks, &stats);
     hash_mem_stats(tracemalloc_filenames, &stats);
-#ifdef TRACE_ARENA
-    hash_mem_stats(tracemalloc_arenas, &stats);
-#endif
 
     TABLES_LOCK();
     hash_mem_stats(tracemalloc_traces, &stats);
@@ -4660,8 +3674,8 @@ tracemalloc_get_tracemalloc_memory(PyObject *self)
 PyDoc_STRVAR(tracemalloc_get_traced_memory_doc,
     "get_traced_memory() -> int\n"
     "\n"
-    "Get the total size in bytes of all memory blocks allocated\n"
-    "by Python currently.");
+    "Get the current size and maximum size of memory blocks traced\n"
+    "by the tracemalloc module as a tuple: (size: int, max_size: int).");
 
 static PyObject*
 tracemalloc_get_traced_memory(PyObject *self)
@@ -4678,19 +3692,6 @@ tracemalloc_get_traced_memory(PyObject *self)
     max_size_obj = PyLong_FromSize_t(max_size);
     return Py_BuildValue("NN", size_obj, max_size_obj);
 }
-
-#ifdef TRACE_ARENA
-PyDoc_STRVAR(tracemalloc_get_arena_size_doc,
-    "get_arena_size() -> int\n"
-    "\n"
-    "Get the total size in bytes of all arenas.");
-
-static PyObject*
-tracemalloc_get_arena_size(PyObject *self)
-{
-    return PyLong_FromSize_t(tracemalloc_arena_size);
-}
-#endif
 
 static int
 tracemalloc_add_filter(filter_t *filter)
@@ -4727,20 +3728,10 @@ tracemalloc_add_filter(filter_t *filter)
 }
 
 PyDoc_STRVAR(tracemalloc_add_filter_doc,
-    "add_filter(include: bool, filename: str, lineno: int=None, traceback: bool=True)\n"
+    "add_filter(filter)\n"
     "\n"
-    "Add a filter. If include is True, only trace memory blocks allocated\n"
-    "in a file with a name matching filename at line number lineno. If\n"
-    "include is True, don't trace memory blocks allocated in a file with a\n"
-    "name matching filename at line number lineno.\n"
-    "\n"
-    "The filename can contain one or many '*' joker characters which\n"
-    "matchs any substring, including an empty string. The '.pyc' and '.pyo'\n"
-    "suffixes are automatically replaced with '.py'. On Windows, the\n"
-    "comparison is case insensitive and the alternative separator '/' is\n"
-    "replaced with the standard separator '\'.\n"
-    "\n"
-    "If lineno is None or lesser than 1, it matches any line number.");
+    "Add a new filter on Python memory allocations,\n"
+    "filter is a Filter instance.");
 
 static PyObject*
 py_tracemalloc_add_filter(PyObject *self, PyObject *args)
@@ -4757,19 +3748,25 @@ py_tracemalloc_add_filter(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(tracemalloc_add_include_filter_doc,
-    "add_include_filter(filename: str, lineno: int=None, traceback: bool=False)");
+PyDoc_STRVAR(tracemalloc_add_inclusive_filter_doc,
+    "add_inclusive_filter(filename_pattern: str, lineno: int=None,\n"
+    "                     traceback: bool=False)\n"
+    "\n"
+    "Add an inclusive filter: helper for the add_filter() function\n"
+    "creating a Filter instance with the include attribute set to True.");
 
 static PyObject*
-tracemalloc_add_include_filter(PyObject *self, PyObject *args, PyObject *kwds)
+tracemalloc_add_inclusive_filter(PyObject *self,
+                                 PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"filename", "lineno", "traceback", 0};
+    static char *kwlist[] = {"filename_pattern", "lineno", "traceback", 0};
     PyObject *filename;
     int lineno = -1;
     int traceback = 0;
     filter_t filter;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&i:add_include_filter", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "U|O&i:add_inclusive_filter",
+                                     kwlist,
                                      &filename,
                                      &tracemalloc_parse_lineno, &lineno,
                                      &traceback))
@@ -4787,19 +3784,25 @@ tracemalloc_add_include_filter(PyObject *self, PyObject *args, PyObject *kwds)
     Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(tracemalloc_add_exclude_filter_doc,
-    "add_exclude_filter(filename: str, lineno: int=None, traceback: bool=False)");
+PyDoc_STRVAR(tracemalloc_add_exclusive_filter_doc,
+    "add_exclusive_filter(filename_pattern: str, lineno: int=None,\n"
+    "                     traceback: bool=False)\n"
+    "\n"
+    "Add an exclusive filter: helper for the add_filter() function\n"
+    "creating a Filter instance with the include attribute set to False.");
 
 static PyObject*
-tracemalloc_add_exclude_filter(PyObject *self, PyObject *args, PyObject *kwds)
+tracemalloc_add_exclusive_filter(PyObject *self,
+                                 PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"filename", "lineno", "traceback", 0};
+    static char *kwlist[] = {"filename_pattern", "lineno", "traceback", 0};
     PyObject *filename;
     int lineno = -1;
     int traceback = 0;
     filter_t filter;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|O&i:add_exclude_filter", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "U|O&i:add_exclusive_filter",
+                                     kwlist,
                                      &filename,
                                      &tracemalloc_parse_lineno, &lineno,
                                      &traceback))
@@ -4834,10 +3837,8 @@ filter_as_obj(filter_t *filter)
 PyDoc_STRVAR(tracemalloc_get_filters_doc,
     "get_filters()\n"
     "\n"
-    "Get the filters as list of (include: bool, filename: str, lineno: int)"
-    "tuples.\n"
-    "\n"
-    "If *lineno* is ``None``, a filter matchs any line number.");
+    "Get the filters on Python memory allocations.\n"
+    "Return a list of Filter instances.");
 
 static size_t
 tracemalloc_get_filters(PyObject *list, size_t first_index,
@@ -4897,57 +3898,11 @@ py_tracemalloc_clear_filters(PyObject *self)
     Py_RETURN_NONE;
 }
 
-#ifdef MS_WINDOWS
-PyDoc_STRVAR(tracemalloc_get_process_memory_doc,
-    "get_process_memory()\n"
-    "\n"
-    "Get the memory usage of the current process as a tuple:\n"
-    "(rss: int, vms: int).");
-
-static PyObject*
-tracemalloc_get_process_memory(PyObject *self)
-{
-    typedef BOOL (_stdcall *GPMI_PROC) (HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
-    static HINSTANCE psapi = NULL;
-    static GPMI_PROC GetProcessMemoryInfo = NULL;
-    HANDLE hProcess;
-    PROCESS_MEMORY_COUNTERS counters;
-    PyObject *rss, *vms;
-
-    if (psapi == NULL) {
-        psapi = LoadLibraryW(L"psapi.dll");
-        if (psapi == NULL)
-            return PyErr_SetFromWindowsErr(0);
-    }
-
-    if (GetProcessMemoryInfo == NULL) {
-        GetProcessMemoryInfo = (GPMI_PROC)GetProcAddress(psapi, "GetProcessMemoryInfo");
-        if (GetProcessMemoryInfo == NULL)
-            return PyErr_SetFromWindowsErr(0);
-    }
-
-    hProcess = GetCurrentProcess();
-
-    if (!GetProcessMemoryInfo(hProcess, &counters, sizeof(counters)))
-        return PyErr_SetFromWindowsErr(0);
-
-    rss = PyLong_FromSize_t(counters.WorkingSetSize);
-    if (rss == NULL)
-        return NULL;
-    vms = PyLong_FromSize_t(counters.PagefileUsage);
-    if (vms == NULL) {
-        Py_DECREF(vms);
-        return NULL;
-    }
-    return Py_BuildValue("NN", rss, vms);
-}
-#endif
-
 static PyMethodDef module_methods[] = {
     {"is_enabled", (PyCFunction)py_tracemalloc_is_enabled, METH_NOARGS,
-     PyDoc_STR("is_enabled()->bool")},
-    {"clear_traces", (PyCFunction)py_tracemalloc_clear_traces, METH_NOARGS,
-     tracemalloc_clear_traces_doc},
+     tracemalloc_is_enabled_doc},
+    {"reset", (PyCFunction)py_tracemalloc_reset, METH_NOARGS,
+     tracemalloc_reset_doc},
     {"get_stats", (PyCFunction)tracemalloc_get_stats, METH_NOARGS,
      tracemalloc_get_stats_doc},
     {"get_traces", (PyCFunction)py_tracemalloc_get_traces, METH_NOARGS,
@@ -4958,10 +3913,6 @@ static PyMethodDef module_methods[] = {
      tracemalloc_get_object_trace_doc},
     {"get_trace", (PyCFunction)py_tracemalloc_get_trace, METH_O,
      tracemalloc_get_trace_doc},
-    {"cancel_tasks", (PyCFunction)tracemalloc_cancel_tasks, METH_NOARGS,
-     tracemalloc_cancel_tasks_doc},
-    {"get_tasks", (PyCFunction)tracemalloc_get_tasks, METH_NOARGS,
-     tracemalloc_get_tasks_doc},
     {"enable", (PyCFunction)py_tracemalloc_enable, METH_NOARGS,
      tracemalloc_enable_doc},
     {"disable", (PyCFunction)py_tracemalloc_disable, METH_NOARGS,
@@ -4974,24 +3925,16 @@ static PyMethodDef module_methods[] = {
      METH_NOARGS, tracemalloc_get_tracemalloc_memory_doc},
     {"get_traced_memory", (PyCFunction)tracemalloc_get_traced_memory,
      METH_NOARGS, tracemalloc_get_traced_memory_doc},
-#ifdef TRACE_ARENA
-    {"get_arena_size", (PyCFunction)tracemalloc_get_arena_size,
-     METH_NOARGS, tracemalloc_get_arena_size_doc},
-#endif
     {"add_filter", (PyCFunction)py_tracemalloc_add_filter,
      METH_VARARGS, tracemalloc_add_filter_doc},
-    {"add_include_filter", (PyCFunction)tracemalloc_add_include_filter,
-     METH_VARARGS | METH_KEYWORDS, tracemalloc_add_include_filter_doc},
-    {"add_exclude_filter", (PyCFunction)tracemalloc_add_exclude_filter,
-     METH_VARARGS | METH_KEYWORDS, tracemalloc_add_exclude_filter_doc},
+    {"add_inclusive_filter", (PyCFunction)tracemalloc_add_inclusive_filter,
+     METH_VARARGS | METH_KEYWORDS, tracemalloc_add_inclusive_filter_doc},
+    {"add_exclusive_filter", (PyCFunction)tracemalloc_add_exclusive_filter,
+     METH_VARARGS | METH_KEYWORDS, tracemalloc_add_exclusive_filter_doc},
     {"get_filters", (PyCFunction)py_tracemalloc_get_filters, METH_NOARGS,
      tracemalloc_get_filters_doc},
     {"clear_filters", (PyCFunction)py_tracemalloc_clear_filters, METH_NOARGS,
      tracemalloc_clear_filters_doc},
-#ifdef MS_WINDOWS
-    {"get_process_memory", (PyCFunction)tracemalloc_get_process_memory, METH_NOARGS,
-     tracemalloc_get_process_memory_doc},
-#endif
 
     /* private functions */
     {"_atexit", (PyCFunction)tracemalloc_atexit, METH_NOARGS},
@@ -5001,9 +3944,8 @@ static PyMethodDef module_methods[] = {
 };
 
 PyDoc_STRVAR(module_doc,
-"_tracemalloc module.");
+"Debug module to trace memory blocks allocated by Python.");
 
-#ifdef PYTHON3
 static struct PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT,
     "_tracemalloc",
@@ -5012,60 +3954,132 @@ static struct PyModuleDef module_def = {
     module_methods,
     NULL,
 };
-#endif
 
 PyMODINIT_FUNC
-#ifdef PYTHON3
 PyInit__tracemalloc(void)
-#else
-init_tracemalloc(void)
-#endif
 {
-    PyObject *m, *version;
-
-#ifdef PYTHON3
+    PyObject *m;
     m = PyModule_Create(&module_def);
-#else
-    m = Py_InitModule3("_tracemalloc", module_methods, module_doc);
-#endif
     if (m == NULL)
-        goto error;
+        return NULL;
 
     if (tracemalloc_init() < 0)
-        goto error;
+        return NULL;
 
     if (PyType_Ready(&FilterType) < 0)
-        goto error;
-    if (PyType_Ready(&TaskType) < 0)
-        goto error;
+        return NULL;
 
     Py_INCREF((PyObject*) &FilterType);
     PyModule_AddObject(m, "Filter", (PyObject*)&FilterType);
-    Py_INCREF((PyObject*) &TaskType);
-    PyModule_AddObject(m, "Task", (PyObject*)&TaskType);
-
-#ifdef PYTHON3
-    version = PyUnicode_FromString(VERSION);
-#else
-    version = PyString_FromString(VERSION);
-#endif
-    if (version == NULL)
-        goto error;
-    PyModule_AddObject(m, "__version__", version);
 
     if (tracemalloc_atexit_register(m) < 0)
-        goto error;
-#ifdef PYTHON3
+        return NULL;
     return m;
-#else
-    return;
-#endif
+}
+
+static int
+parse_sys_xoptions(PyObject *value)
+{
+    PyObject *valuelong = NULL, *max_nframe = NULL;
+    int nframe;
+
+    if (value == Py_True)
+        return 1;
+
+    assert(PyUnicode_Check(value));
+
+    if (PyUnicode_GetLength(value) == 0)
+        goto error;
+
+    valuelong = PyLong_FromUnicodeObject(value, 10);
+    if (valuelong == NULL)
+        goto error;
+
+    max_nframe = PyLong_FromLong(MAX_NFRAME);
+    if (max_nframe == NULL)
+        goto error;
+
+    /* if 0 <= valuelong < MAX_NFRAME */
+    if (_PyLong_Sign(valuelong) >= 0
+        && PyObject_RichCompareBool(valuelong, max_nframe, Py_LE)) {
+        nframe = PyLong_AsUnsignedLongMask(valuelong);
+        if (nframe == (unsigned long)-1 && PyErr_Occurred())
+            goto error;
+    }
+    else
+        nframe = MAX_NFRAME + 1;
+
+    if (nframe > MAX_NFRAME)
+        goto error;
+
+    Py_DECREF(valuelong);
+    Py_DECREF(max_nframe);
+
+    assert(nframe >= 0);
+    return nframe;
 
 error:
-#ifdef PYTHON3
-    return NULL;
-#else
-    return;
+    Py_XDECREF(valuelong);
+    Py_XDECREF(max_nframe);
+    return -1;
+}
+
+int
+_PyTraceMalloc_Init(void)
+{
+    char *p;
+    int nframe;
+
+#ifdef WITH_THREAD
+    assert(PyGILState_Check());
 #endif
+
+    if ((p = Py_GETENV("PYTHONTRACEMALLOC")) && *p != '\0') {
+        char *endptr = p;
+        unsigned long value;
+
+        value = strtoul(p, &endptr, 10);
+        if (*endptr != '\0'
+            || value > MAX_NFRAME
+            || (errno == ERANGE && value == ULONG_MAX))
+        {
+            Py_FatalError("PYTHONTRACEMALLOC must be an integer "
+                          "in range [0; " STR(MAX_NFRAME) "]");
+            return -1;
+        }
+
+        nframe = (int)value;
+    }
+    else {
+        PyObject *xoptions, *key, *value;
+
+        xoptions = PySys_GetXOptions();
+        if (xoptions == NULL)
+            return -1;
+
+        key = PyUnicode_FromString("tracemalloc");
+        if (key == NULL)
+            return -1;
+
+        value = PyDict_GetItemWithError(xoptions, key);
+        Py_DECREF(key);
+        if (value == NULL) {
+            if (PyErr_Occurred())
+                return -1;
+
+            /* -X tracemalloc is not used */
+            return 0;
+        }
+
+        nframe = parse_sys_xoptions(value);
+        Py_DECREF(value);
+        if (nframe < 0) {
+            Py_FatalError("-X tracemalloc=NFRAME: number of frame must be "
+                          "an integer in range [0; " STR(MAX_NFRAME) "]");
+        }
+    }
+
+    tracemalloc_config.max_nframe = nframe;
+    return tracemalloc_enable();
 }
 

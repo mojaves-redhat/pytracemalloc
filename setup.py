@@ -46,20 +46,6 @@ CLASSIFIERS = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-def pkg_config(name, arg, strip_prefix=0):
-    args = ['pkg-config', name, arg]
-    process = subprocess.Popen(args,
-                               stdout=subprocess.PIPE,
-                               universal_newlines=True)
-    stdout, stderr = process.communicate()
-    exitcode = process.wait()
-    if exitcode:
-        sys.exit(exitcode)
-    args = stdout.strip().split()
-    if strip_prefix:
-        args = [item[strip_prefix:] for item in args]
-    return args
-
 def main():
     pythonapi = ctypes.cdll.LoadLibrary(None)
     if not hasattr(pythonapi, 'PyMem_SetAllocator'):
