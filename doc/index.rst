@@ -78,10 +78,6 @@ Compile and install pytracemalloc
 Dependencies:
 
 * `Python <http://www.python.org>`_ 2.5 - 3.4
-* `glib <http://www.gtk.org>`_ version 2
-* (optional) `psutil <https://pypi.python.org/pypi/psutil>`_ to get the
-  process memory. pytracemalloc is able to read the memory usage of the process
-  on Linux without psutil.
 
 Install::
 
