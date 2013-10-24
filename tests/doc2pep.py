@@ -13,9 +13,6 @@ with open("Doc/library/tracemalloc.rst") as fp:
 pos = content.index("\nAPI\n")
 content = content[pos:]
 
-pos = content.index("\nCommand line options\n")
-content = content[:pos]
-
 content = content.strip() + "\n\n"
 
 content = content.replace("~", "")
