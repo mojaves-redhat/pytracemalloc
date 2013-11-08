@@ -7,16 +7,8 @@ ALLOC_LOOPS = 3
 NOBJECTS = 10**4
 BENCH_RUNS = 5
 
-# using DisplayTop, only 2 GroupedStats instances are present in memory at
-# the same time
-NGET_STATS = 2
-NGET_TRACES = 2
-
-def get_location(lineno_delta):
-    frame = sys._getframe(1)
-    code = frame.f_code
-    lineno = frame.f_lineno + lineno_delta
-    return (code.co_filename, lineno)
+# To compare, we need 2 snapshots stored in the memory at the same time
+NGET_SNAPSHOT = 2
 
 def alloc_objects():
     for loop in range(ALLOC_LOOPS):
@@ -32,18 +24,9 @@ def alloc_objects():
         objs.extend([object() for index in range(NOBJECTS)])
         objs = None
 
-def get_stats():
-    return tracemalloc.get_stats()
-get_stats_location = get_location(-1)
-
-def get_traces():
-    x = tracemalloc.get_traces()
-    return x
-get_traces_location = get_location(-1)
-
-def test_get_stats():
-    all_stats = []
-    for loop in range(NGET_STATS):
+def take_snapshots():
+    all_snapshots = []
+    for loop in range(NGET_SNAPSHOT):
         objs = [object() for index in range(NOBJECTS)]
         objs.extend([object() for index in range(NOBJECTS)])
         objs.extend([object() for index in range(NOBJECTS)])
@@ -54,35 +37,16 @@ def test_get_stats():
         objs.extend([object() for index in range(NOBJECTS)])
         objs.extend([object() for index in range(NOBJECTS)])
         objs.extend([object() for index in range(NOBJECTS)])
-        stats = get_stats()
+        snapshot = tracemalloc.take_snapshot()
         objs = None
-        all_stats.append(stats)
-        stats = None
-    all_stats = None
-
-def test_get_traces():
-    all_traces = []
-    for loop in range(NGET_TRACES):
-        objs = [object() for index in range(NOBJECTS)]
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        traces = get_traces()
-        objs = None
-        all_traces.append(traces)
-        traces = None
-    all_traces = None
+        all_snapshots.append(snapshot)
+        snapshots = None
+    all_snapshots = None
 
 def bench(func, trace=True):
     if trace:
-        tracemalloc.reset()
-        tracemalloc.enable()
+        tracemalloc.stop()
+        tracemalloc.start()
     gc.collect()
     best = None
     for run in range(BENCH_RUNS):
@@ -94,61 +58,68 @@ def bench(func, trace=True):
         else:
             best = dt
     if trace:
-        tracemalloc.disable()
+        mem = tracemalloc.get_tracemalloc_memory()
+        ntrace = len(tracemalloc.take_snapshot().traces)
+        tracemalloc.stop()
+    else:
+        mem = ntrace = None
     gc.collect()
-    return best * 1e3
+    return best * 1e3, mem, ntrace
 
-def bench_tracing():
-    func = alloc_objects
+def main():
+    print("Micro benchmark allocating %s objects" % NOBJECTS)
+    print("Clear default tracemalloc filters")
+    tracemalloc.clear_filters()
+    print("")
 
-    base = bench(func, False)
-    print("no tracing", base)
+    base, mem, ntrace = bench(alloc_objects, False)
+    print("no tracing: %.1f ms" % base)
+
+    def run(what):
+        dt, mem, ntrace = bench(alloc_objects)
+        print("%s: %.1f ms, %.1fx slower (%s traces, %.1f kB)"
+              % (what, dt, dt / base, ntrace, mem / 1024))
 
     tracemalloc.set_traceback_limit(0)
-    dt = bench(func)
-    print("trace, 0 frames: %.1f, %.1f times slower" % (dt, dt / base))
+    run("trace, 0 frames")
     tracemalloc.set_traceback_limit(1)
 
-    dt = bench(func)
-    print("trace: %.1f, %.1f times slower" % (dt, dt / base))
+    run("trace")
 
 #    for n in (1, 10, 100):
-#        tracemalloc.enable()
+#        tracemalloc.start()
 #        tasks = [tracemalloctext.Task(str) for index in range(n)] # dummy callback
 #        for task in tasks:
 #            task.set_delay(60.0)
 #            task.schedule()
 #        dt = bench(func)
-#        print("trace with %s task: %.1f, %.1f times slower" % (n, dt, dt / base))
+#        print("trace with %s task: %.1f ms, %.1fx slower" % (n, dt, dt / base))
 #        tracemalloc.cancel_tasks()
 
-    tracemalloc.add_inclusive_filter(__file__)
-    dt = bench(func)
-    print("trace with filter including file: %.1f, %.1f times slower" % (dt, dt / base))
+    tracemalloc.add_filter(tracemalloc.Filter(True, __file__))
+    run("trace with filter including file")
     tracemalloc.clear_filters()
 
-    tracemalloc.add_exclusive_filter(__file__ + "xxx")
-    dt = bench(func)
-    print("trace with not matching excluding file: %.1f, %.1f times slower" % (dt, dt / base))
+    tracemalloc.add_filter(tracemalloc.Filter(False, __file__ + "xxx"))
+    run("trace with not matching excluding file")
     tracemalloc.clear_filters()
 
-    tracemalloc.add_exclusive_filter(__file__)
-    dt = bench(func)
-    print("trace with filter excluding file: %.1f, %.1f times slower" % (dt, dt / base))
+    tracemalloc.add_filter(tracemalloc.Filter(True, "xxx"))
+    run("trace with filter excluding all")
+    tracemalloc.clear_filters()
+
+    tracemalloc.add_filter(tracemalloc.Filter(False, __file__))
+    tracemalloc.add_filter(tracemalloc.Filter(False, tracemalloc.__file__))
+    run("trace with filter excluding file and tracemalloc")
     tracemalloc.clear_filters()
 
     for nframe in (5, 10, 25, 100):
         tracemalloc.set_traceback_limit(nframe)
-        dt = bench(func)
-        print("trace, %s frames: %.1f, %.1f times slower" % (nframe, dt, dt / base))
+        run("trace, %s frames" % nframe)
         tracemalloc.set_traceback_limit(1)
-
-def main():
-    bench_tracing()
     print("")
-    dt = bench(test_get_stats)
-    print("get stats: %.1f" % dt)
-    dt = bench(test_get_traces)
-    print("get traces: %.1f" % dt)
+
+    dt, mem, ntrace = bench(take_snapshots)
+    print("take %s snapshots: %.1f ms" % (NGET_SNAPSHOT, dt))
 
 main()
