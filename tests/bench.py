@@ -4,39 +4,37 @@ import time
 import tracemalloc
 
 ALLOC_LOOPS = 3
-NOBJECTS = 10**4
+NOBJECTS = 10 ** 5
 BENCH_RUNS = 5
 
 # To compare, we need 2 snapshots stored in the memory at the same time
 NGET_SNAPSHOT = 2
 
+# use multiple objects to have an traceback
+def alloc_object5():
+    return object()
+
+def alloc_object4():
+    return alloc_object5()
+
+def alloc_object3():
+    return alloc_object4()
+
+def alloc_object2():
+    return alloc_object3()
+
+def alloc_object():
+    return alloc_object2()
+
 def alloc_objects():
     for loop in range(ALLOC_LOOPS):
-        objs = [object() for index in range(NOBJECTS)]
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
+        objs = [alloc_object() for index in range(NOBJECTS)]
         objs = None
 
 def take_snapshots():
     all_snapshots = []
     for loop in range(NGET_SNAPSHOT):
-        objs = [object() for index in range(NOBJECTS)]
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
-        objs.extend([object() for index in range(NOBJECTS)])
+        objs = [alloc_object() for index in range(NOBJECTS)]
         snapshot = tracemalloc.take_snapshot()
         objs = None
         all_snapshots.append(snapshot)
