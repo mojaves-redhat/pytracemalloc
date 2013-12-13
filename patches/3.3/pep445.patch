@@ -1,6 +1,6 @@
-diff -r 9eab3e745061 Include/objimpl.h
---- a/Include/objimpl.h	Mon Sep 16 11:01:31 2013 +0300
-+++ b/Include/objimpl.h	Mon Oct 07 01:21:49 2013 +0200
+diff -r 0abe369829a3 Include/objimpl.h
+--- a/Include/objimpl.h	Sat Dec 14 00:00:53 2013 +0100
++++ b/Include/objimpl.h	Sat Dec 14 00:01:08 2013 +0100
 @@ -94,9 +94,9 @@ PyObject_{New, NewVar, Del}.
     the object gets initialized via PyObject_{Init, InitVar} after obtaining
     the raw memory.
@@ -60,9 +60,9 @@ diff -r 9eab3e745061 Include/objimpl.h
  
  /*
   * Generic object allocator interface
-diff -r 9eab3e745061 Include/pymem.h
---- a/Include/pymem.h	Mon Sep 16 11:01:31 2013 +0300
-+++ b/Include/pymem.h	Mon Oct 07 01:21:49 2013 +0200
+diff -r 0abe369829a3 Include/pymem.h
+--- a/Include/pymem.h	Sat Dec 14 00:00:53 2013 +0100
++++ b/Include/pymem.h	Sat Dec 14 00:01:08 2013 +0100
 @@ -11,6 +11,11 @@
  extern "C" {
  #endif
@@ -241,9 +241,9 @@ diff -r 9eab3e745061 Include/pymem.h
  #ifdef __cplusplus
  }
  #endif
-diff -r 9eab3e745061 Objects/object.c
---- a/Objects/object.c	Mon Sep 16 11:01:31 2013 +0300
-+++ b/Objects/object.c	Mon Oct 07 01:21:49 2013 +0200
+diff -r 0abe369829a3 Objects/object.c
+--- a/Objects/object.c	Sat Dec 14 00:00:53 2013 +0100
++++ b/Objects/object.c	Sat Dec 14 00:01:08 2013 +0100
 @@ -1858,24 +1858,6 @@ Py_ssize_t (*_Py_abstract_hack)(PyObject
  
  /* Python's malloc wrappers (see pymem.h) */
@@ -269,9 +269,9 @@ diff -r 9eab3e745061 Objects/object.c
  void
  _PyObject_DebugTypeStats(FILE *out)
  {
-diff -r 9eab3e745061 Objects/obmalloc.c
---- a/Objects/obmalloc.c	Mon Sep 16 11:01:31 2013 +0300
-+++ b/Objects/obmalloc.c	Mon Oct 07 01:21:49 2013 +0200
+diff -r 0abe369829a3 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Sat Dec 14 00:00:53 2013 +0100
++++ b/Objects/obmalloc.c	Sat Dec 14 00:01:08 2013 +0100
 @@ -1,5 +1,17 @@
  #include "Python.h"
  
@@ -845,10 +845,10 @@ diff -r 9eab3e745061 Objects/obmalloc.c
  {
      const uchar *q = (const uchar *)p;
      char msgbuf[64];
-diff -r 9eab3e745061 Python/pythonrun.c
---- a/Python/pythonrun.c	Mon Sep 16 11:01:31 2013 +0300
-+++ b/Python/pythonrun.c	Mon Oct 07 01:21:49 2013 +0200
-@@ -240,6 +240,34 @@ import_init(PyInterpreterState *interp, 
+diff -r 0abe369829a3 Python/pythonrun.c
+--- a/Python/pythonrun.c	Sat Dec 14 00:00:53 2013 +0100
++++ b/Python/pythonrun.c	Sat Dec 14 00:01:08 2013 +0100
+@@ -244,6 +244,34 @@ import_init(PyInterpreterState *interp, 
      _PyImportZip_Init();
  }
  
@@ -883,7 +883,7 @@ diff -r 9eab3e745061 Python/pythonrun.c
  
  void
  _Py_InitializeEx_Private(int install_sigs, int install_importlib)
-@@ -368,6 +396,9 @@ void
+@@ -372,6 +400,9 @@ void
      if (_PyFaulthandler_Init())
          Py_FatalError("Py_Initialize: can't initialize faulthandler");
  

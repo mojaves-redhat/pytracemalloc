@@ -412,10 +412,6 @@ traceback_new(void)
     traceback_t *traceback;
     _Py_hashtable_entry_t *entry;
 
-#if defined(WITH_THREAD) && defined(PYTHON3)
-    assert(PyGILState_Check());
-#endif
-
     /* get frames */
     traceback = tracemalloc_traceback;
     traceback->nframe = 0;
@@ -462,10 +458,6 @@ tracemalloc_add_trace(void *ptr, size_t size)
     traceback_t *traceback;
     trace_t trace;
     int res;
-
-#if defined(WITH_THREAD) && defined(PYTHON3)
-    assert(PyGILState_Check());
-#endif
 
     traceback = traceback_new();
     if (traceback == NULL)
@@ -724,11 +716,6 @@ traceback_free_traceback(_Py_hashtable_entry_t *entry, void *user_data)
 static void
 tracemalloc_clear_traces(void)
 {
-#if defined(WITH_THREAD) && defined(PYTHON3)
-    /* The GIL protects variables againt concurrent access */
-    assert(PyGILState_Check());
-#endif
-
     /* Disable also reentrant calls to tracemalloc_malloc() to not add a new
        trace while we are clearing traces */
     assert(get_reentrant());
