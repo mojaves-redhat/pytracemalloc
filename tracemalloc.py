@@ -6,7 +6,7 @@ import pickle
 
 # Import types and functions implemented in C
 from _tracemalloc import *
-from _tracemalloc import _get_object_traceback, _get_traces
+from _tracemalloc import _get_object_traceback, _get_traces, __version__
 
 
 def _format_size(size, sign):

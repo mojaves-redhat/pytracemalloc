@@ -26,7 +26,7 @@ import sys
 # Debug pytracemalloc
 DEBUG = True
 
-VERSION = '1.0dev'
+VERSION = '1.0beta1'
 
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
@@ -42,6 +42,11 @@ CLASSIFIERS = [
 ]
 
 def main():
+    if sys.version_info >= (3, 4):
+        print("tracemalloc is now part of Python 3.4!")
+        print("Third party pytracemalloc module is no more needed.")
+        sys.exit(1)
+
     pythonapi = ctypes.cdll.LoadLibrary(None)
     if not hasattr(pythonapi, 'PyMem_SetAllocator'):
         print("PyMem_SetAllocator: missing, %s has not been patched" % sys.executable)

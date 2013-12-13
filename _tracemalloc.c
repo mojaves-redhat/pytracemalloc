@@ -1,3 +1,5 @@
+#define VERSION "1.0beta1"
+
 #include "Python.h"
 #include "hashtable.h"
 #include "frameobject.h"
@@ -1338,7 +1340,8 @@ PyInit__tracemalloc(void)
 init_tracemalloc(void)
 #endif
 {
-    PyObject *m;
+    PyObject *m, *version;
+
 #ifdef PYTHON3
     m = PyModule_Create(&module_def);
 #else
@@ -1349,6 +1352,11 @@ init_tracemalloc(void)
 
     if (tracemalloc_init() < 0)
         goto error;
+
+    version = STRING_FROMSTRING(VERSION);
+    if (version == NULL)
+        goto error;
+    PyModule_AddObject(m, "__version__", version);
 
 #ifdef PYTHON3
     return m;

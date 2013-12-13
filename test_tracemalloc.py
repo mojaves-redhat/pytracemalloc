@@ -1,4 +1,5 @@
 import contextlib
+import imp
 import os
 import sys
 import tracemalloc
@@ -725,11 +726,24 @@ class TestFilters(unittest.TestCase):
         self.assertFalse(f._match_traceback(unknown))
 
 
+class TestVersion(unittest.TestCase):
+    def test_version(self):
+        filename = os.path.join(os.path.dirname(__file__), 'setup.py')
+        if sys.version_info >= (3, 4):
+            import importlib
+            loader = importlib.machinery.SourceFileLoader('setup', filename)
+            setup_py = loader.load_module()
+        else:
+            setup_py = imp.load_source('setup', filename)
+        self.assertEqual(tracemalloc.__version__, setup_py.VERSION)
+
+
 def test_main():
     support.run_unittest(
         TestTracemallocEnabled,
         TestSnapshot,
         TestFilters,
+        TestVersion,
     )
 
 if __name__ == "__main__":
