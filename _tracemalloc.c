@@ -810,8 +810,6 @@ tracemalloc_init(void)
     return 0;
 }
 
-/* FIXME: uninitialize at exit */
-#if 0
 static void
 tracemalloc_deinit(void)
 {
@@ -839,7 +837,54 @@ tracemalloc_deinit(void)
 
     Py_XDECREF(unknown_filename);
 }
-#endif
+
+static PyObject*
+tracemalloc_atexit(PyObject *self)
+{
+    tracemalloc_deinit();
+    Py_RETURN_NONE;
+}
+
+static int
+tracemalloc_atexit_register(PyObject *module)
+{
+    PyObject *method = NULL, *atexit = NULL, *func = NULL;
+    PyObject *result;
+    int ret = -1;
+
+    method = PyObject_GetAttrString(module, "_atexit");
+    if (method == NULL)
+        goto done;
+
+    atexit = PyImport_ImportModule("atexit");
+    if (atexit == NULL) {
+        if (!PyErr_Warn(PyExc_ImportWarning,
+                       "atexit module is missing: "
+                       "cannot automatically disable tracemalloc at exit"))
+        {
+            PyErr_Clear();
+            return 0;
+        }
+        goto done;
+    }
+
+    func = PyObject_GetAttrString(atexit, "register");
+    if (func == NULL)
+        goto done;
+
+    result = PyObject_CallFunction(func, "O", method);
+    if (result == NULL)
+        goto done;
+    Py_DECREF(result);
+
+    ret = 0;
+
+done:
+    Py_XDECREF(method);
+    Py_XDECREF(func);
+    Py_XDECREF(atexit);
+    return ret;
+}
 
 static int
 tracemalloc_start(int max_nframe)
@@ -1315,6 +1360,9 @@ static PyMethodDef module_methods[] = {
     {"get_traced_memory", (PyCFunction)tracemalloc_get_traced_memory,
      METH_NOARGS, tracemalloc_get_traced_memory_doc},
 
+    /* private functions */
+    {"_atexit", (PyCFunction)tracemalloc_atexit, METH_NOARGS},
+
     /* sentinel */
     {NULL, NULL}
 };
@@ -1357,6 +1405,9 @@ init_tracemalloc(void)
     if (version == NULL)
         goto error;
     PyModule_AddObject(m, "__version__", version);
+
+    if (tracemalloc_atexit_register(m) < 0)
+        goto error;
 
 #ifdef PYTHON3
     return m;
