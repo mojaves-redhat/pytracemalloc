@@ -14,14 +14,12 @@ Python. It provides the following information:
 
 To trace most memory blocks allocated by Python, the module should be started
 as early as possible by setting the :envvar:`PYTHONTRACEMALLOC` environment
-variable to ``1``, or by using :option:`-X` ``tracemalloc`` command line
-option. The :func:`tracemalloc.start` function can be called at runtime to
+variable to ``1``. The :func:`tracemalloc.start` function can be called at runtime to
 start tracing Python memory allocations.
 
 By default, a trace of an allocated memory block only stores the most recent
 frame (1 frame). To store 25 frames at startup: set the
-:envvar:`PYTHONTRACEMALLOC` environment variable to ``25``, or use the
-:option:`-X` ``tracemalloc=25`` command line option.
+:envvar:`PYTHONTRACEMALLOC` environment variable to ``25``.
 
 Websites:
 
@@ -357,8 +355,7 @@ Functions
    to measure how much memory is used by the :mod:`tracemalloc` module.
 
    The :envvar:`PYTHONTRACEMALLOC` environment variable
-   (``PYTHONTRACEMALLOC=NFRAME``) and the :option:`-X` ``tracemalloc=NFRAME``
-   command line option can be used to start tracing at startup.
+   (``PYTHONTRACEMALLOC=NFRAME``) can be used to start tracing at startup.
 
    See also :func:`stop`, :func:`is_tracing` and :func:`get_traceback_limit`
    functions.
