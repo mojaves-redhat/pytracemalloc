@@ -23,11 +23,6 @@ import os
 import subprocess
 import sys
 
-# Define TRACE_RAW_MALLOC  (experimental option): yes, I like to call
-# PyGILState_Ensure() when the GIL is released, to track PyMem_RawMalloc() and
-# PyMem_RawRealloc() memory!
-TRACE_RAW_MALLOC = True
-
 # Debug pytracemalloc
 DEBUG = True
 
@@ -55,8 +50,6 @@ def main():
         print("PyMem_SetAllocator: present")
 
     cflags = []
-    if TRACE_RAW_MALLOC:
-        cflags.append('-DTRACE_RAW_MALLOC')
     if not DEBUG:
         cflags.append('-DNDEBUG')
 
@@ -65,7 +58,7 @@ def main():
 
     ext = Extension(
         '_tracemalloc',
-        ['_tracemalloc.c'],
+        ['_tracemalloc.c', 'hashtable.c'],
         extra_compile_args = cflags)
 
     options = {
