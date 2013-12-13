@@ -1,6 +1,6 @@
 diff -r 0abe369829a3 Include/objimpl.h
 --- a/Include/objimpl.h	Sat Dec 14 00:00:53 2013 +0100
-+++ b/Include/objimpl.h	Sat Dec 14 00:01:08 2013 +0100
++++ b/Include/objimpl.h	Sat Dec 14 00:54:54 2013 +0100
 @@ -94,9 +94,9 @@ PyObject_{New, NewVar, Del}.
     the object gets initialized via PyObject_{Init, InitVar} after obtaining
     the raw memory.
@@ -62,7 +62,7 @@ diff -r 0abe369829a3 Include/objimpl.h
   * Generic object allocator interface
 diff -r 0abe369829a3 Include/pymem.h
 --- a/Include/pymem.h	Sat Dec 14 00:00:53 2013 +0100
-+++ b/Include/pymem.h	Sat Dec 14 00:01:08 2013 +0100
++++ b/Include/pymem.h	Sat Dec 14 00:54:54 2013 +0100
 @@ -11,6 +11,11 @@
  extern "C" {
  #endif
@@ -243,7 +243,7 @@ diff -r 0abe369829a3 Include/pymem.h
  #endif
 diff -r 0abe369829a3 Objects/object.c
 --- a/Objects/object.c	Sat Dec 14 00:00:53 2013 +0100
-+++ b/Objects/object.c	Sat Dec 14 00:01:08 2013 +0100
++++ b/Objects/object.c	Sat Dec 14 00:54:54 2013 +0100
 @@ -1858,24 +1858,6 @@ Py_ssize_t (*_Py_abstract_hack)(PyObject
  
  /* Python's malloc wrappers (see pymem.h) */
@@ -271,7 +271,7 @@ diff -r 0abe369829a3 Objects/object.c
  {
 diff -r 0abe369829a3 Objects/obmalloc.c
 --- a/Objects/obmalloc.c	Sat Dec 14 00:00:53 2013 +0100
-+++ b/Objects/obmalloc.c	Sat Dec 14 00:01:08 2013 +0100
++++ b/Objects/obmalloc.c	Sat Dec 14 00:54:54 2013 +0100
 @@ -1,5 +1,17 @@
  #include "Python.h"
  
@@ -847,49 +847,54 @@ diff -r 0abe369829a3 Objects/obmalloc.c
      char msgbuf[64];
 diff -r 0abe369829a3 Python/pythonrun.c
 --- a/Python/pythonrun.c	Sat Dec 14 00:00:53 2013 +0100
-+++ b/Python/pythonrun.c	Sat Dec 14 00:01:08 2013 +0100
-@@ -244,6 +244,34 @@ import_init(PyInterpreterState *interp, 
++++ b/Python/pythonrun.c	Sat Dec 14 00:54:54 2013 +0100
+@@ -244,6 +244,40 @@ import_init(PyInterpreterState *interp, 
      _PyImportZip_Init();
  }
  
 +static void
 +inittracemalloc(void)
 +{
-+    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++    PyObject *mod = NULL, *res = NULL;
++    char *p, *endptr;
++    long nframe;
++
++    p = Py_GETENV("PYTHONTRACEMALLOC");
++    if (p == NULL || *p == '\0')
++        return;
++
++    endptr = p;
++    nframe = strtol(p, &endptr, 10);
++    if (*endptr != '\0' || nframe < 1 || nframe > 100000)
++        Py_FatalError("PYTHONTRACEMALLOC: invalid number of frames");
 +
 +    mod = PyImport_ImportModule("_tracemalloc");
 +    if (mod == NULL)
 +        goto error;
 +
-+    enable = PyObject_GetAttrString(mod, "enable");
-+    if (enable == NULL)
-+        goto error;
-+
-+    res = PyObject_CallFunction(enable, NULL);
++    res = PyObject_CallMethod(mod, "start", "i", (int)nframe);
 +    if (res == NULL)
 +        goto error;
 +
 +    goto done;
 +
 +error:
-+    fprintf(stderr, "failed to enable tracemalloc:\n");
++    fprintf(stderr, "failed to start tracemalloc:\n");
 +    PyErr_Print();
 +
 +done:
 +    Py_XDECREF(mod);
-+    Py_XDECREF(enable);
 +    Py_XDECREF(res);
 +}
  
  void
  _Py_InitializeEx_Private(int install_sigs, int install_importlib)
-@@ -372,6 +400,9 @@ void
-     if (_PyFaulthandler_Init())
-         Py_FatalError("Py_Initialize: can't initialize faulthandler");
+@@ -395,6 +429,8 @@ void
+         Py_XDECREF(warnings_module);
+     }
  
-+    if ((p = Py_GETENV("PYTHONTRACEMALLOC")) && *p != '\0')
-+        inittracemalloc();
++    inittracemalloc();
 +
-     _PyTime_Init();
- 
-     if (initfsencoding(interp) < 0)
+     if (!Py_NoSiteFlag)
+         initsite(); /* Module site */
+ }

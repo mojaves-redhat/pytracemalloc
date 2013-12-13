@@ -96,6 +96,10 @@ int Py_HashRandomizationFlag = 0; /* for -R and PYTHONHASHSEED */
 
 PyThreadState *_Py_Finalizing = NULL;
 
+/* Hack to force loading of object files */
+int (*_PyOS_mystrnicmp_hack)(const char *, const char *, Py_ssize_t) = \
+    PyOS_mystrnicmp; /* Python/pystrcmp.o */
+
 /* PyModule_GetWarningsModule is no longer necessary as of 2.6
 since _warnings is builtin.  This API should not be used. */
 PyObject *
@@ -243,29 +247,35 @@ import_init(PyInterpreterState *interp, PyObject *sysmod)
 static void
 inittracemalloc(void)
 {
-    PyObject *mod = NULL, *enable = NULL, *res = NULL;
+    PyObject *mod = NULL, *res = NULL;
+    char *p, *endptr;
+    long nframe;
+
+    p = Py_GETENV("PYTHONTRACEMALLOC");
+    if (p == NULL || *p == '\0')
+        return;
+
+    endptr = p;
+    nframe = strtol(p, &endptr, 10);
+    if (*endptr != '\0' || nframe < 1 || nframe > 100000)
+        Py_FatalError("PYTHONTRACEMALLOC: invalid number of frames");
 
     mod = PyImport_ImportModule("_tracemalloc");
     if (mod == NULL)
         goto error;
 
-    enable = PyObject_GetAttrString(mod, "enable");
-    if (enable == NULL)
-        goto error;
-
-    res = PyObject_CallFunction(enable, NULL);
+    res = PyObject_CallMethod(mod, "start", "i", (int)nframe);
     if (res == NULL)
         goto error;
 
     goto done;
 
 error:
-    fprintf(stderr, "failed to enable tracemalloc:\n");
+    fprintf(stderr, "failed to start tracemalloc:\n");
     PyErr_Print();
 
 done:
     Py_XDECREF(mod);
-    Py_XDECREF(enable);
     Py_XDECREF(res);
 }
 
@@ -396,9 +406,6 @@ _Py_InitializeEx_Private(int install_sigs, int install_importlib)
     if (_PyFaulthandler_Init())
         Py_FatalError("Py_Initialize: can't initialize faulthandler");
 
-    if ((p = Py_GETENV("PYTHONTRACEMALLOC")) && *p != '\0')
-        inittracemalloc();
-
     _PyTime_Init();
 
     if (initfsencoding(interp) < 0)
@@ -421,6 +428,8 @@ _Py_InitializeEx_Private(int install_sigs, int install_importlib)
         }
         Py_XDECREF(warnings_module);
     }
+
+    inittracemalloc();
 
     if (!Py_NoSiteFlag)
         initsite(); /* Module site */
@@ -1911,6 +1920,16 @@ PyErr_Display(PyObject *exception, PyObject *value, PyObject *tb)
 {
     PyObject *seen;
     PyObject *f = PySys_GetObject("stderr");
+    if (PyExceptionInstance_Check(value)
+        && tb != NULL && PyTraceBack_Check(tb)) {
+        /* Put the traceback on the exception, otherwise it won't get
+           displayed.  See issue #18776. */
+        PyObject *cur_tb = PyException_GetTraceback(value);
+        if (cur_tb == NULL)
+            PyException_SetTraceback(value, tb);
+        else
+            Py_DECREF(cur_tb);
+    }
     if (f == Py_None) {
         /* pass */
     }
