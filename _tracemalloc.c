@@ -11,12 +11,18 @@
 #endif
 
 #ifdef PYTHON3
+#  define INT_FROM_LONG PyLong_FromLong
+#  define INT_FROM_SIZE_T PyLong_FromSize_t
+
 #  define STRING_CHECK PyUnicode_Check
 #  define STRING_COMPARE PyUnicode_Compare
 #  define STRING_FROMSTRING PyUnicode_FromString
 #  define STRING_GET_LENGTH PyUnicode_GetLength
 #  define STRING_INTERN_IN_PLACE PyUnicode_InternInPlace
 #else
+#  define INT_FROM_LONG PyInt_FromLong
+#  define INT_FROM_SIZE_T PyInt_FromSize_t
+
 #  define STRING_CHECK PyString_Check
 #  define STRING_COMPARE(a, b) (!_PyString_Eq(a, b))
 #  define STRING_FROMSTRING PyString_FromString
@@ -971,7 +977,7 @@ static PyObject*
 lineno_as_obj(int lineno)
 {
     if (lineno >= 0)
-        return PyLong_FromLong(lineno);
+        return INT_FROM_LONG(lineno);
     else
         Py_RETURN_NONE;
 }
@@ -1079,7 +1085,7 @@ trace_to_pyobject(trace_t *trace, _Py_hashtable_t *intern_tracebacks)
     if (trace_obj == NULL)
         return NULL;
 
-    size = PyLong_FromSize_t(trace->size);
+    size = INT_FROM_SIZE_T(trace->size);
     if (size == NULL) {
         Py_DECREF(trace_obj);
         return NULL;
@@ -1289,7 +1295,7 @@ PyDoc_STRVAR(tracemalloc_get_traceback_limit_doc,
 static PyObject*
 py_tracemalloc_get_traceback_limit(PyObject *self)
 {
-    return PyLong_FromLong(tracemalloc_config.max_nframe);
+    return INT_FROM_LONG(tracemalloc_config.max_nframe);
 }
 
 PyDoc_STRVAR(tracemalloc_get_tracemalloc_memory_doc,
@@ -1311,7 +1317,7 @@ tracemalloc_get_tracemalloc_memory(PyObject *self)
     size += _Py_hashtable_size(tracemalloc_traces);
     TABLES_UNLOCK();
 
-    size_obj = PyLong_FromSize_t(size);
+    size_obj = INT_FROM_SIZE_T(size);
     return Py_BuildValue("N", size_obj);
 }
 
@@ -1335,8 +1341,8 @@ tracemalloc_get_traced_memory(PyObject *self)
     peak_size = tracemalloc_peak_traced_memory;
     TABLES_UNLOCK();
 
-    size_obj = PyLong_FromSize_t(size);
-    peak_size_obj = PyLong_FromSize_t(peak_size);
+    size_obj = INT_FROM_SIZE_T(size);
+    peak_size_obj = INT_FROM_SIZE_T(peak_size);
     return Py_BuildValue("NN", size_obj, peak_size_obj);
 }
 
