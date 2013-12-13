@@ -91,6 +91,11 @@ int _Py_QnewFlag = 0;
 int Py_NoUserSiteDirectory = 0; /* for -s and site.py */
 int Py_HashRandomizationFlag = 0; /* for -R and PYTHONHASHSEED */
 
+
+/* Hack to force loading of object files */
+int (*_PyOS_mystrnicmp_hack)(const char *, const char *, Py_ssize_t) = \
+    PyOS_mystrnicmp; /* Python/pystrcmp.o */
+
 /* PyModule_GetWarningsModule is no longer necessary as of 2.6
 since _warnings is builtin.  This API should not be used. */
 PyObject *
@@ -135,29 +140,35 @@ add_flag(int flag, const char *envs)
 static void
 inittracemalloc(void)
 {
-    PyObject *mod = NULL, *enable = NULL, *res = NULL;
+    PyObject *mod = NULL, *res = NULL;
+    char *p, *endptr;
+    long nframe;
+
+    p = Py_GETENV("PYTHONTRACEMALLOC");
+    if (p == NULL || *p == '\0')
+        return;
+
+    endptr = p;
+    nframe = strtol(p, &endptr, 10);
+    if (*endptr != '\0' || nframe < 1 || nframe > 100000)
+        Py_FatalError("PYTHONTRACEMALLOC: invalid number of frames");
 
     mod = PyImport_ImportModule("_tracemalloc");
     if (mod == NULL)
         goto error;
 
-    enable = PyObject_GetAttrString(mod, "enable");
-    if (enable == NULL)
-        goto error;
-
-    res = PyObject_CallFunction(enable, NULL);
+    res = PyObject_CallMethod(mod, "start", "i", (int)nframe);
     if (res == NULL)
         goto error;
 
     goto done;
 
 error:
-    fprintf(stderr, "failed to enable tracemalloc:\n");
+    fprintf(stderr, "failed to start tracemalloc:\n");
     PyErr_Print();
 
 done:
     Py_XDECREF(mod);
-    Py_XDECREF(enable);
     Py_XDECREF(res);
 }
 
@@ -274,9 +285,6 @@ Py_InitializeEx(int install_sigs)
     if (install_sigs)
         initsigs(); /* Signal handling stuff, including initintr() */
 
-    if ((p = Py_GETENV("PYTHONTRACEMALLOC")) && *p != '\0')
-        inittracemalloc();
-
     /* Initialize warnings. */
     _PyWarnings_Init();
     if (PySys_HasWarnOptions()) {
@@ -292,6 +300,8 @@ Py_InitializeEx(int install_sigs)
 #ifdef WITH_THREAD
     _PyGILState_Init(interp, tstate);
 #endif /* WITH_THREAD */
+
+    inittracemalloc();
 
     if (!Py_NoSiteFlag)
         initsite(); /* Module site */

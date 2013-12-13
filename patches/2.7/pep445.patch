@@ -1,7 +1,7 @@
-diff -r 1a65bb15dedf Include/objimpl.h
---- a/Include/objimpl.h	Thu Sep 05 00:26:15 2013 +0200
-+++ b/Include/objimpl.h	Sun Oct 06 16:54:23 2013 +0200
-@@ -98,45 +98,12 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
+diff -r 8d78fb6280f7 Include/objimpl.h
+--- a/Include/objimpl.h	Sat Dec 14 00:34:51 2013 +0100
++++ b/Include/objimpl.h	Sat Dec 14 00:51:24 2013 +0100
+@@ -98,46 +98,17 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
  PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
  PyAPI_FUNC(void) PyObject_Free(void *);
  
@@ -33,8 +33,13 @@ diff -r 1a65bb15dedf Include/objimpl.h
  #define PyObject_MALLOC         PyObject_Malloc
  #define PyObject_REALLOC        PyObject_Realloc
  #define PyObject_FREE           PyObject_Free
--#endif
--
++#define PyObject_Del            PyObject_Free
++#define PyObject_DEL            PyObject_Free
++
++#ifdef PYMALLOC_DEBUG   /* WITH_PYMALLOC && PYMALLOC_DEBUG */
++PyAPI_FUNC(void) _PyObject_DebugMallocStats(void);
+ #endif
+ 
 -#else   /* ! WITH_PYMALLOC */
 -#define PyObject_MALLOC         PyMem_MALLOC
 -#define PyObject_REALLOC        PyMem_REALLOC
@@ -42,15 +47,15 @@ diff -r 1a65bb15dedf Include/objimpl.h
 -
 -#endif  /* WITH_PYMALLOC */
 -
- #define PyObject_Del            PyObject_Free
+-#define PyObject_Del            PyObject_Free
 -#define PyObject_DEL            PyObject_FREE
-+#define PyObject_DEL            PyObject_Free
- 
+-
  /* for source compatibility with 2.2 */
  #define _PyObject_Del           PyObject_Free
-diff -r 1a65bb15dedf Include/pymem.h
---- a/Include/pymem.h	Thu Sep 05 00:26:15 2013 +0200
-+++ b/Include/pymem.h	Sun Oct 06 16:54:23 2013 +0200
+ 
+diff -r 8d78fb6280f7 Include/pymem.h
+--- a/Include/pymem.h	Sat Dec 14 00:34:51 2013 +0100
++++ b/Include/pymem.h	Sat Dec 14 00:51:24 2013 +0100
 @@ -11,6 +11,11 @@
  extern "C" {
  #endif
@@ -176,9 +181,9 @@ diff -r 1a65bb15dedf Include/pymem.h
  #ifdef __cplusplus
  }
  #endif
-diff -r 1a65bb15dedf Objects/object.c
---- a/Objects/object.c	Thu Sep 05 00:26:15 2013 +0200
-+++ b/Objects/object.c	Sun Oct 06 16:54:23 2013 +0200
+diff -r 8d78fb6280f7 Objects/object.c
+--- a/Objects/object.c	Sat Dec 14 00:34:51 2013 +0100
++++ b/Objects/object.c	Sat Dec 14 00:51:24 2013 +0100
 @@ -2335,27 +2335,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -207,9 +212,9 @@ diff -r 1a65bb15dedf Objects/object.c
  /* These methods are used to control infinite recursion in repr, str, print,
     etc.  Container objects that may recursively contain themselves,
     e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
-diff -r 1a65bb15dedf Objects/obmalloc.c
---- a/Objects/obmalloc.c	Thu Sep 05 00:26:15 2013 +0200
-+++ b/Objects/obmalloc.c	Sun Oct 06 16:54:23 2013 +0200
+diff -r 8d78fb6280f7 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Sat Dec 14 00:34:51 2013 +0100
++++ b/Objects/obmalloc.c	Sat Dec 14 00:51:24 2013 +0100
 @@ -1,5 +1,282 @@
  #include "Python.h"
  
@@ -830,52 +835,57 @@ diff -r 1a65bb15dedf Objects/obmalloc.c
  {
      const uchar *q = (const uchar *)p;
      char msgbuf[64];
-diff -r 1a65bb15dedf Python/pythonrun.c
---- a/Python/pythonrun.c	Thu Sep 05 00:26:15 2013 +0200
-+++ b/Python/pythonrun.c	Sun Oct 06 16:54:23 2013 +0200
-@@ -132,6 +132,35 @@ add_flag(int flag, const char *envs)
+diff -r 8d78fb6280f7 Python/pythonrun.c
+--- a/Python/pythonrun.c	Sat Dec 14 00:34:51 2013 +0100
++++ b/Python/pythonrun.c	Sat Dec 14 00:51:24 2013 +0100
+@@ -137,6 +137,41 @@ add_flag(int flag, const char *envs)
      return flag;
  }
  
 +static void
 +inittracemalloc(void)
 +{
-+    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++    PyObject *mod = NULL, *res = NULL;
++    char *p, *endptr;
++    long nframe;
++
++    p = Py_GETENV("PYTHONTRACEMALLOC");
++    if (p == NULL || *p == '\0')
++        return;
++
++    endptr = p;
++    nframe = strtol(p, &endptr, 10);
++    if (*endptr != '\0' || nframe < 1 || nframe > 100000)
++        Py_FatalError("PYTHONTRACEMALLOC: invalid number of frames");
 +
 +    mod = PyImport_ImportModule("_tracemalloc");
 +    if (mod == NULL)
 +        goto error;
 +
-+    enable = PyObject_GetAttrString(mod, "enable");
-+    if (enable == NULL)
-+        goto error;
-+
-+    res = PyObject_CallFunction(enable, NULL);
++    res = PyObject_CallMethod(mod, "start", "i", (int)nframe);
 +    if (res == NULL)
 +        goto error;
 +
 +    goto done;
 +
 +error:
-+    fprintf(stderr, "failed to enable tracemalloc:\n");
++    fprintf(stderr, "failed to start tracemalloc:\n");
 +    PyErr_Print();
 +
 +done:
 +    Py_XDECREF(mod);
-+    Py_XDECREF(enable);
 +    Py_XDECREF(res);
 +}
 +
  void
  Py_InitializeEx(int install_sigs)
  {
-@@ -245,6 +274,9 @@ Py_InitializeEx(int install_sigs)
-     if (install_sigs)
-         initsigs(); /* Signal handling stuff, including initintr() */
+@@ -266,6 +301,8 @@ Py_InitializeEx(int install_sigs)
+     _PyGILState_Init(interp, tstate);
+ #endif /* WITH_THREAD */
  
-+    if ((p = Py_GETENV("PYTHONTRACEMALLOC")) && *p != '\0')
-+        inittracemalloc();
++    inittracemalloc();
 +
-     /* Initialize warnings. */
-     _PyWarnings_Init();
-     if (PySys_HasWarnOptions()) {
+     if (!Py_NoSiteFlag)
+         initsite(); /* Module site */
+ 

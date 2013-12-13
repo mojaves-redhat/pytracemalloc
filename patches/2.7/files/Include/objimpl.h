@@ -105,6 +105,10 @@ PyAPI_FUNC(void) PyObject_Free(void *);
 #define PyObject_Del            PyObject_Free
 #define PyObject_DEL            PyObject_Free
 
+#ifdef PYMALLOC_DEBUG   /* WITH_PYMALLOC && PYMALLOC_DEBUG */
+PyAPI_FUNC(void) _PyObject_DebugMallocStats(void);
+#endif
+
 /* for source compatibility with 2.2 */
 #define _PyObject_Del           PyObject_Free
 
