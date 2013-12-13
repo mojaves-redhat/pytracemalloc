@@ -287,6 +287,9 @@ See :meth:`Snapshot.statistics` for more options.
 API
 ===
 
+The version of the module is ``tracemalloc.__version__`` (string), example:
+``"0.9.1"``.
+
 Functions
 ---------
 
@@ -651,11 +654,17 @@ Changelog
 
 Development version:
 
-- Rewrite the API to prepare the PEP 454
-- Split the project into two parts: pytracemalloc and pytracemalloctext:
-  https://github.com/haypo/pytracemalloctext
-- Remove the dependency to the glib library: tracemalloc now has its own
-  implementation of hash table, based on the cfuhash library
+- The API is now completly different. It should be more powerful. The command
+  line has been dropped.
+- The code has been almost fully rewritten from scratch between the version
+  0.9.1 and 1.0
+- The glib hashtable has been replaced by a builtin hashtable based on the
+  libcfu library. The glib dependency has been removed so it should be easier
+  to install the module (ex: on Windows).
+- The malloc hook API has been proposed as the PEP 445. The PEP has been
+  accepted and implemented in Python 3.4.
+- The tracemalloc module has been proposed as the PEP 454. After many reviews,
+  the PEP has been accepted and the code has been merged into Python 3.4.
 
 Version 0.9.1 (2013-06-01)
 
