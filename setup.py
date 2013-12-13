@@ -4,7 +4,7 @@
 #  - run unit tests
 #  - update VERSION in _tracemalloc.c and setup.py
 #  - reset option in setup.py: DEBUG=False
-#  - set release date in the README.rst file
+#  - set release date in the doc/index.rst file
 #  - git commit -a
 #  - git tag -a pytracemalloc-VERSION
 #  - git push --tags
@@ -24,12 +24,12 @@ import subprocess
 import sys
 
 # Debug pytracemalloc
-DEBUG = True
+DEBUG = False
 
 VERSION = '1.0beta1'
 
 CLASSIFIERS = [
-    'Development Status :: 3 - Alpha',
+    'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
     'License :: OSI Approved :: MIT License',
     'Natural Language :: English',

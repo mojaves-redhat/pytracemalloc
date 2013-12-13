@@ -2,16 +2,19 @@
 pytracemalloc
 +++++++++++++
 
-Debug tool tracking Python memory allocations. Provide the following
-information:
+The tracemalloc module is a debug tool to trace memory blocks allocated by
+Python. It provides the following information:
 
-* Allocated size and number of allocations per file,
-  or optionally per file and line number
-* Compute the average size of memory allocations
-* Compute delta between two "snapshots"
-* Source of a memory allocation: filename and line number
+* Traceback where an object was allocated
+* Statistics on allocated memory blocks per filename and per line number:
+  total size, number and average size of allocated memory blocks
+* Compute the differences between two snapshots to detect memory leaks
 
-Project homepage: https://pypi.python.org/pypi/pytracemalloc
+Websites:
 
-Documentation: http://pytracemalloc.readthedocs.org/
+* Project homepage: https://pypi.python.org/pypi/pytracemalloc
+* Source code: https://github.com/haypo/pytracemalloc
+* Documentation: http://pytracemalloc.readthedocs.org/
+
+See doc/index.rst for the source of the documentation.
 

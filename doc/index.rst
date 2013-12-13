@@ -36,8 +36,8 @@ http://docs.python.org/dev/library/tracemalloc.html
 Status of the module
 ====================
 
-pytracemalloc 1.0 contains patches for Python 2.7 and 3.3. It has been tested
-on Linux.
+pytracemalloc 1.0 contains patches for Python 2.7 and 3.3. The version 1.0beta1
+has been tested on Linux with Python 2.7 and 3.3: unit tests passed.
 
 
 Installation
