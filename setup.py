@@ -49,8 +49,7 @@ def main():
 
     pythonapi = ctypes.cdll.LoadLibrary(None)
     if not hasattr(pythonapi, 'PyMem_SetAllocator'):
-        print("PyMem_SetAllocator: missing, %s has not been patched" % sys.executable)
-        sys.exit(1)
+        print("WARNING: PyMem_SetAllocator: missing, %s has not been patched" % sys.executable)
     else:
         print("PyMem_SetAllocator: present")
 
