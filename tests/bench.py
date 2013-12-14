@@ -41,10 +41,10 @@ def take_snapshots():
         snapshots = None
     all_snapshots = None
 
-def bench(func, trace=True):
+def bench(func, trace=True, nframe=1):
     if trace:
         tracemalloc.stop()
-        tracemalloc.start()
+        tracemalloc.start(nframe)
     gc.collect()
     best = None
     for run in range(BENCH_RUNS):
@@ -66,55 +66,19 @@ def bench(func, trace=True):
 
 def main():
     print("Micro benchmark allocating %s objects" % NOBJECTS)
-    print("Clear default tracemalloc filters")
-    tracemalloc.clear_filters()
-    print("")
 
     base, mem, ntrace = bench(alloc_objects, False)
     print("no tracing: %.1f ms" % base)
 
-    def run(what):
-        dt, mem, ntrace = bench(alloc_objects)
+    def run(what, nframe=1):
+        dt, mem, ntrace = bench(alloc_objects, nframe=nframe)
         print("%s: %.1f ms, %.1fx slower (%s traces, %.1f kB)"
               % (what, dt, dt / base, ntrace, mem / 1024))
 
-    tracemalloc.set_traceback_limit(0)
-    run("trace, 0 frames")
-    tracemalloc.set_traceback_limit(1)
-
     run("trace")
 
-#    for n in (1, 10, 100):
-#        tracemalloc.start()
-#        tasks = [tracemalloctext.Task(str) for index in range(n)] # dummy callback
-#        for task in tasks:
-#            task.set_delay(60.0)
-#            task.schedule()
-#        dt = bench(func)
-#        print("trace with %s task: %.1f ms, %.1fx slower" % (n, dt, dt / base))
-#        tracemalloc.cancel_tasks()
-
-    tracemalloc.add_filter(tracemalloc.Filter(True, __file__))
-    run("trace with filter including file")
-    tracemalloc.clear_filters()
-
-    tracemalloc.add_filter(tracemalloc.Filter(False, __file__ + "xxx"))
-    run("trace with not matching excluding file")
-    tracemalloc.clear_filters()
-
-    tracemalloc.add_filter(tracemalloc.Filter(True, "xxx"))
-    run("trace with filter excluding all")
-    tracemalloc.clear_filters()
-
-    tracemalloc.add_filter(tracemalloc.Filter(False, __file__))
-    tracemalloc.add_filter(tracemalloc.Filter(False, tracemalloc.__file__))
-    run("trace with filter excluding file and tracemalloc")
-    tracemalloc.clear_filters()
-
     for nframe in (5, 10, 25, 100):
-        tracemalloc.set_traceback_limit(nframe)
-        run("trace, %s frames" % nframe)
-        tracemalloc.set_traceback_limit(1)
+        run("trace, %s frames" % nframe, nframe=nframe)
     print("")
 
     dt, mem, ntrace = bench(take_snapshots)

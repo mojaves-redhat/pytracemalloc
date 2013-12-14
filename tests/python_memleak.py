@@ -55,27 +55,36 @@ import gc
 import sys
 import tracemalloc
 
-tracemalloc.add_exclude_filter(tracemalloc.__file__)
-tracemalloc.enable()
-
-task = tracemalloc.DisplayTopTask(10)
-#task.start(60)
+tracemalloc.start()
+previous_snapshot = tracemalloc.take_snapshot()
 
 def dump_memory():
-    print("*FORCE DISPLAY*")
-    task.display()
-    return
+    if 1:
+        global previous_snapshot
 
-    with open("/proc/self/status") as fp:
-        for line in fp:
-            if "VmRSS" not in line:
-                continue
-            print(line.rstrip())
-            break
+        snapshot = tracemalloc.take_snapshot()
+        exclude = tracemalloc.Filter(False, tracemalloc.__file__)
+        snapshot = snapshot.filter_traces([exclude])
+        top_stats = snapshot.compare_to(previous_snapshot, 'lineno')
+        previous_snapshot = snapshot
 
-    #with open("/proc/self/maps") as fp:
-    #    for line in fp:
-    #        print(line.rstrip())
+        print("[ Top 10 ]")
+        for stat in top_stats[:10]:
+            print(stat)
+        total = sum(stat.size for stat in top_stats)
+        print("Total allocated size: %.1f KiB" % (total / 1024))
+        print("")
+    else:
+        with open("/proc/self/status") as fp:
+            for line in fp:
+                if "VmRSS" not in line:
+                    continue
+                print(line.rstrip())
+                break
+
+        #with open("/proc/self/maps") as fp:
+        #    for line in fp:
+        #        print(line.rstrip())
 
 def func():
     ns = {}
@@ -102,12 +111,6 @@ dump_memory()
 
 for loop in range(1, 4):
     func()
-    print("After call #%s:" % loop)
-    print("After call #%s:" % loop)
-    print("After call #%s:" % loop)
-    print("After call #%s:" % loop)
-    print("After call #%s:" % loop)
-    print("After call #%s:" % loop)
     print("After call #%s:" % loop)
     dump_memory()
 
