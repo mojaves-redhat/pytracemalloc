@@ -648,19 +648,28 @@ Traceback
 Changelog
 =========
 
-Development version:
+Version 1.0beta1 (2013-12-14):
 
-- The API is now completly different. It should be more powerful. The command
-  line has been dropped.
-- The code has been almost fully rewritten from scratch between the version
-  0.9.1 and 1.0
-- The glib hashtable has been replaced by a builtin hashtable based on the
-  libcfu library. The glib dependency has been removed so it should be easier
-  to install the module (ex: on Windows).
+- A trace of a memory block can now contain more than 1 frame, a whole
+  traceback instead of just the most recent frame
 - The malloc hook API has been proposed as the PEP 445. The PEP has been
   accepted and implemented in Python 3.4.
 - The tracemalloc module has been proposed as the PEP 454. After many reviews,
   the PEP has been accepted and the code has been merged into Python 3.4.
+- The code has been almost fully rewritten from scratch between the version
+  0.9.1 and 1.0. The tracemalloc has now a completly different API:
+
+  * DisplayTop, TakeSnapshot and DisplayGarbage classes have been removed
+  * Rename enable/disable to start/stop
+  * start() now takes an optional nframe parameter which is the maximum number
+    of frames stored in a trace of a memory block
+  * Raw traces are accesible in Snapshot.traces
+  * The get_process_memory() has been removed, but new functions are added
+    like get_traced_memory()
+
+- The glib hashtable has been replaced by a builtin hashtable based on the
+  libcfu library. The glib dependency has been removed so it should be easier
+  to install the module (ex: on Windows).
 
 Version 0.9.1 (2013-06-01)
 

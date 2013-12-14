@@ -16,5 +16,5 @@ Websites:
 * Source code: https://github.com/haypo/pytracemalloc
 * Documentation: http://pytracemalloc.readthedocs.org/
 
-See doc/index.rst for the source of the documentation.
+See ``doc/index.rst`` for the source of the documentation.
 
