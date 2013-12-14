@@ -27,7 +27,7 @@ Websites:
 * Source code: https://github.com/haypo/pytracemalloc
 * Documentation: http://pytracemalloc.readthedocs.org/
 
-The tracemalloc has been integrated in Python 3.4:
+The tracemalloc module has been integrated in Python 3.4:
 http://docs.python.org/dev/library/tracemalloc.html
 
 
@@ -46,13 +46,12 @@ Patch Python
 
 To install pytracemalloc, you need a modified Python runtime:
 
-* Download Python source code
-* Apply a patch (where X.Y is the Python version, 2.7 or 3.3):
-  patch -p1 < patches/X.Y/pep445.patch
+* Download Python source code (tarball)
+* Uncompress the tarball and enter the newly created directory (ex: Python-2.7.6)
+* Apply the patch of your Python version, example:
+  patch -p1 < ~/pytracemalloc-1.0beta1/patches/2.7/pep445.patch
 * Compile and install Python:
-  ./configure && make && sudo make install
-* It can be installed in a custom directory. For example:
-  ./configure --prefix=/opt/mypython
+  ./configure --prefix=/opt/python && make && sudo make install
 
 
 Compile and install pytracemalloc
@@ -64,7 +63,7 @@ Dependencies:
 
 Install::
 
-    /opt/mypython/bin/python setup.py install
+    /opt/python/bin/python setup.py install
 
 
 Examples
