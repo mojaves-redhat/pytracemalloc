@@ -48,10 +48,13 @@ To install pytracemalloc, you need a modified Python runtime:
 
 * Download Python source code (tarball)
 * Uncompress the tarball and enter the newly created directory (ex: Python-2.7.6)
-* Apply the patch of your Python version, example:
-  patch -p1 < ~/pytracemalloc-1.0beta1/patches/2.7/pep445.patch
-* Compile and install Python:
-  ./configure --prefix=/opt/python && make && sudo make install
+* Apply the patch of your Python version, example::
+
+    patch -p1 < ~/pytracemalloc-1.0/patches/2.7/pep445.patch
+
+* Compile and install Python::
+
+    ./configure --prefix=/opt/python && make && sudo make install
 
 
 Compile and install pytracemalloc

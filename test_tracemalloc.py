@@ -1,5 +1,6 @@
 import contextlib
 import imp
+import linecache
 import os
 import sys
 import tracemalloc
@@ -521,8 +522,10 @@ class TestSnapshot(unittest.TestCase):
         snapshot, snapshot2 = create_snapshots()
         def getline(filename, lineno):
             return '  <%s, %s>' % (filename, lineno)
-        with unittest.mock.patch('tracemalloc.linecache.getline',
-                                 side_effect=getline):
+        old_getline = linecache.getline
+        try:
+            linecache.getline = getline
+
             tb = snapshot.traces[0].traceback
             self.assertEqual(tb.format(),
                              ['  File "a.py", line 2',
@@ -536,6 +539,8 @@ class TestSnapshot(unittest.TestCase):
 
             self.assertEqual(tb.format(limit=-1),
                              [])
+        finally:
+            linecache.getline = old_getline
 
 
 class TestFilters(unittest.TestCase):
