@@ -70,6 +70,7 @@ def main():
         'license': 'MIT license',
         'description': 'Track memory allocations per Python file',
         'long_description': long_description,
+        "url": "http://pytracemalloc.readthedocs.org/",
         'download_url': 'https://github.com/haypo/pytracemalloc',
         'author': 'Victor Stinner',
         'author_email': 'victor.stinner@gmail.com',

@@ -12,9 +12,9 @@ Python. It provides the following information:
 
 Websites:
 
-* Project homepage: https://pypi.python.org/pypi/pytracemalloc
+* Website: http://pytracemalloc.readthedocs.org/
+* PyPI entryhttps://pypi.python.org/pypi/pytracemalloc
 * Source code: https://github.com/haypo/pytracemalloc
-* Documentation: http://pytracemalloc.readthedocs.org/
 
 See ``doc/index.rst`` for the source of the documentation.
 
