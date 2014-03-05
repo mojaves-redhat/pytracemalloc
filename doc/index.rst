@@ -161,7 +161,6 @@ Get the traceback of a memory block
 
 Code to display the traceback of the biggest memory block::
 
-    import linecache
     import tracemalloc
 
     # Store 25 frames
@@ -175,12 +174,8 @@ Code to display the traceback of the biggest memory block::
     # pick the biggest memory block
     stat = top_stats[0]
     print("%s memory blocks: %.1f KiB" % (stat.count, stat.size / 1024))
-    for frame in stat.traceback:
-        print('  File "%s", line %s' % (frame.filename, frame.lineno))
-        line = linecache.getline(frame.filename, frame.lineno)
-        line = line.strip()
-        if line:
-            print('    ' + line)
+    for line in stat.traceback.format():
+        print(line)
 
 Example of output of the Python test suite (traceback limited to 25 frames)::
 

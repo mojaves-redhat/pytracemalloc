@@ -8,6 +8,7 @@
 #  - set release date in the doc/index.rst file
 #  - git commit -a
 #  - git tag -a pytracemalloc-VERSION
+#  - git push
 #  - git push --tags
 #  - python setup.py register sdist upload
 #
