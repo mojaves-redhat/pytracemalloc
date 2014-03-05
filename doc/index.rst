@@ -648,7 +648,14 @@ Traceback
 Changelog
 =========
 
-Version 1.0beta1 (2013-12-14):
+Version 1.0
+-----------
+
+- Python issue #20354: Fix alignment issue in the tracemalloc module on 64-bit
+  platforms. Bug seen on 64-bit Linux when using "make profile-opt".
+
+Version 1.0beta1 (2013-12-14)
+-----------------------------
 
 - A trace of a memory block can now contain more than 1 frame, a whole
   traceback instead of just the most recent frame
@@ -672,6 +679,7 @@ Version 1.0beta1 (2013-12-14):
   to install the module (ex: on Windows).
 
 Version 0.9.1 (2013-06-01)
+--------------------------
 
 - Add ``PYTRACEMALLOC`` environment variable to trace memory allocation as
   early as possible at Python startup
@@ -681,12 +689,14 @@ Version 0.9.1 (2013-06-01)
 - Use also MiB, GiB and TiB units to format a size, not only B and KiB
 
 Version 0.9 (2013-05-31)
+------------------------
 
 - Tracking free lists is now the recommended method to patch Python
 - Fix code tracking Python free lists and python2.7_track_free_list.patch
 - Add patches tracking free lists for Python 2.5.2 and 3.4.
 
 Version 0.8.1 (2013-03-23)
+--------------------------
 
 - Fix python2.7.patch and python3.4.patch when Python is not compiled in debug
   mode (without --with-pydebug)
@@ -695,6 +705,7 @@ Version 0.8.1 (2013-03-23)
 - setup.py automatically detects which patch was applied on Python
 
 Version 0.8 (2013-03-19)
+------------------------
 
 - The top uses colors and displays also the memory usage of the process
 - Add :class:`DisplayGarbage` class
@@ -714,6 +725,7 @@ Version 0.8 (2013-03-19)
   private
 
 Version 0.7 (2013-03-04)
+------------------------
 
 - First public version
 
