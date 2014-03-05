@@ -651,8 +651,8 @@ Traceback
 Changelog
 =========
 
-Version 1.0
------------
+Version 1.0 (2014-03-05)
+------------------------
 
 - Python issue #20616: Add a format() method to tracemalloc.Traceback.
 - Python issue #20354: Fix alignment issue in the tracemalloc module on 64-bit
