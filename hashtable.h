@@ -16,7 +16,7 @@ typedef struct {
 
 #define _Py_SLIST_HEAD(SLIST) (((_Py_slist_t *)SLIST)->head)
 
-#if 1
+#if PY_VERSION_HEX < 0x03020000
 typedef unsigned long Py_uhash_t;
 /* Prime multiplier used in string and various other hashes. */
 #define _PyHASH_MULTIPLIER 1000003UL  /* 0xf4243 */
