@@ -651,6 +651,7 @@ Changelog
 Version 1.0
 -----------
 
+- Python issue #20616: Add a format() method to tracemalloc.Traceback.
 - Python issue #20354: Fix alignment issue in the tracemalloc module on 64-bit
   platforms. Bug seen on 64-bit Linux when using "make profile-opt".
 - Fix slicing traces and fix slicing a traceback.
