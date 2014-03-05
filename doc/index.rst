@@ -653,6 +653,7 @@ Version 1.0
 
 - Python issue #20354: Fix alignment issue in the tracemalloc module on 64-bit
   platforms. Bug seen on 64-bit Linux when using "make profile-opt".
+- Fix slicing traces and fix slicing a traceback.
 
 Version 1.0beta1 (2013-12-14)
 -----------------------------
