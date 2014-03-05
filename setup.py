@@ -12,7 +12,6 @@
 #
 # After the release:
 #  - set version to n+1
-#  - add a new empty section in the changelog for version n+1
 #  - git commit
 #  - git push
 
@@ -26,7 +25,7 @@ import sys
 # Debug pytracemalloc
 DEBUG = False
 
-VERSION = '1.0beta1'
+VERSION = '1.0'
 
 CLASSIFIERS = [
     'Development Status :: 4 - Beta',
