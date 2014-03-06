@@ -23,23 +23,37 @@ frame (1 frame). To store 25 frames at startup: set the
 
 Websites:
 
-* Project homepage: https://pypi.python.org/pypi/pytracemalloc
-* Source code: https://github.com/haypo/pytracemalloc
-* Documentation: http://pytracemalloc.readthedocs.org/
+* `Project homepage
+  <http://pytracemalloc.readthedocs.org/>`_ (this documentation)
+* `Entry in the Python Cheeseshop (PyPI)
+  <https://pypi.python.org/pypi/pytracemalloc>`_
+* `Source code at Github
+  <https://github.com/haypo/pytracemalloc>`_
+* `Statistics on the project at Ohloh
+  <https://www.ohloh.net/p/pytracemalloc/>`_
 
-The tracemalloc module has been integrated in Python 3.4:
-http://docs.python.org/dev/library/tracemalloc.html
+The tracemalloc module has been integrated in Python 3.4: read `tracemalloc
+module documentation <http://docs.python.org/dev/library/tracemalloc.html>`_.
 
 
 Status of the module
 ====================
 
-pytracemalloc 1.0 contains patches for Python 2.7 and 3.3. The version 1.0beta1
-has been tested on Linux with Python 2.7 and 3.3: unit tests passed.
+pytracemalloc 1.0 contains patches for Python 2.7 and 3.3. The version 1.0 has
+been tested on Linux with Python 2.7 and 3.3: unit tests passed.
 
 
 Installation
 ============
+
+Linux packages
+--------------
+
+Ubuntu packages for pytracemalloc 0.9.1: `pytracemalloc PPA
+<https://launchpad.net/~ionel-mc/+archive/pytracemalloc>`_ by Ionel Cristian
+Maries. The API of pytracemalloc 0.9 is very different of pytracemalloc 1.0
+API.
+
 
 Patch Python
 ------------
@@ -55,6 +69,12 @@ To install pytracemalloc, you need a modified Python runtime:
 * Compile and install Python::
 
     ./configure --prefix=/opt/python && make && sudo make install
+
+.. note::
+
+   Currently, only patches for Python 2.7 and 3.3 are provided. If you need
+   patches for other Python versions, please ask. The code should work on
+   Python 2.5-3.3.
 
 
 Compile and install pytracemalloc
