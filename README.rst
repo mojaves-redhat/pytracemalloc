@@ -13,7 +13,7 @@ Python. It provides the following information:
 Websites:
 
 * Website: http://pytracemalloc.readthedocs.org/
-* PyPI entryhttps://pypi.python.org/pypi/pytracemalloc
+* PyPI entry: http://pypi.python.org/pypi/pytracemalloc
 * Source code: https://github.com/haypo/pytracemalloc
 
 See ``doc/index.rst`` for the source of the documentation.
