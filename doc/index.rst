@@ -35,6 +35,11 @@ Websites:
 The tracemalloc module has been integrated in Python 3.4: read `tracemalloc
 module documentation <http://docs.python.org/dev/library/tracemalloc.html>`_.
 
+.. image:: tiger.jpg
+   :alt: Tiger
+   :align: center
+   :target: http://www.flickr.com/photos/haypo/7199655050/
+
 
 Status of the module
 ====================
