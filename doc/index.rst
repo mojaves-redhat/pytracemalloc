@@ -4,6 +4,11 @@
 .. module:: tracemalloc
    :synopsis: Trace memory allocations.
 
+.. image:: tiger.jpg
+   :alt: Tiger
+   :align: right
+   :target: http://www.flickr.com/photos/haypo/7199655050/
+
 The tracemalloc module is a debug tool to trace memory blocks allocated by
 Python. It provides the following information:
 
@@ -34,12 +39,6 @@ Websites:
 
 The tracemalloc module has been integrated in Python 3.4: read `tracemalloc
 module documentation <http://docs.python.org/dev/library/tracemalloc.html>`_.
-
-.. image:: tiger.jpg
-   :alt: Tiger
-   :align: center
-   :target: http://www.flickr.com/photos/haypo/7199655050/
-
 
 Status of the module
 ====================
