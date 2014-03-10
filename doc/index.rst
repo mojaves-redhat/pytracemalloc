@@ -53,10 +53,16 @@ Installation
 Linux packages
 --------------
 
-Ubuntu packages for pytracemalloc 0.9.1: `pytracemalloc PPA
-<https://launchpad.net/~ionel-mc/+archive/pytracemalloc>`_ by Ionel Cristian
-Maries. The API of pytracemalloc 0.9 is very different of pytracemalloc 1.0
-API.
+Ubuntu packages for pytracemalloc 1.0: `pytracemalloc 1.0 PPA
+<https://launchpad.net/~ionel-mc/+archive/pytracemalloc-1.0>`_ by Ionel
+Cristian Maries.
+
+.. note::
+
+   There are also packages for pytracemalloc 0.9.1: `pytracemalloc PPA
+   <https://launchpad.net/~ionel-mc/+archive/pytracemalloc>`_. The API of
+   pytracemalloc 0.9 is very different of pytracemalloc 1.0 API and
+   pytracemalloc 0.9 is no more maintainted.
 
 
 Patch Python
