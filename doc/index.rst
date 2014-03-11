@@ -78,7 +78,17 @@ To install pytracemalloc, you need a modified Python runtime:
 
 * Compile and install Python::
 
-    ./configure --prefix=/opt/python && make && sudo make install
+    ./configure --enable-unicode=ucs4 --prefix=/opt/python && make && sudo make install
+
+.. note::
+
+   ``--enable-unicode=ucs4`` uses the wide mode: store Unicode code points in
+   32-bit (4 bytes per character). It is the mode used by all Linux
+   distributions. Your modified Python will have the same ABI and so you should
+   be able to use extension modules of the system.
+
+   ``--enable-unicode=ucs4`` is no more needed with Python 3.3 which always
+   uses compact strings: see the PEP 393.
 
 .. note::
 
