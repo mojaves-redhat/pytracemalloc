@@ -65,6 +65,33 @@ Cristian Maries.
    pytracemalloc 0.9 is no more maintainted.
 
 
+Manual installation
+-------------------
+
+Commands to compile a patched Python and install pytracemalloc::
+
+    wget http://www.python.org/ftp/python/2.7.6/Python-2.7.6.tgz
+    wget https://pypi.python.org/packages/source/p/pytracemalloc/pytracemalloc-1.0.tar.gz
+    tar -xf Python-2.7.6.tgz
+    tar -xf pytracemalloc-1.0.tar.gz
+    cd Python-2.7.6
+    patch -p1 < ../pytracemalloc-1.0/patches/2.7/pep445.patch
+    ./configure --enable-unicode=ucs4 --prefix=/opt/tracemalloc/py27
+    make install
+    cd ../pytracemalloc-1.0
+    /opt/tracemalloc/py27/bin/python2.7 setup.py install
+
+You have now a patched Python 2.7 installed in
+``/opt/tracemalloc/py27/bin/python2.7`` with the tracemalloc module installed,
+congrats!
+
+To use modules installed for the system Python, directories of ``sys.path``
+should be copied from the system Python to the patched Python. Example of
+command to generate an environment variable to use system modules::
+
+    python -c 'import sys; print("PYTHONPATH=%s" % ":".join(filter(bool, sys.path)))'
+
+
 Patch Python
 ------------
 
@@ -104,7 +131,10 @@ Dependencies:
 
 * `Python <http://www.python.org>`_ 2.5 - 3.3
 
-Install::
+`Download pytracemalloc from the Python Cheeseshop (PyPI)
+<https://pypi.python.org/pypi/pytracemalloc>`_.
+
+Install pytracemalloc::
 
     /opt/python/bin/python setup.py install
 
@@ -317,6 +347,42 @@ Example of output of the Python test suite::
     Total allocated size: 5258.8 KiB
 
 See :meth:`Snapshot.statistics` for more options.
+
+
+Thread to write snapshots into files every minutes
+--------------------------------------------------
+
+Create a daemon thread writing snapshots every minutes into
+``/tmp/tracemalloc-PPP-CCCC.pickle`` where ``PPP`` is the identifier of the
+process and ``CCCC`` is a counter::
+
+    import pickle, gc, os, signal, threading, time, tracemalloc
+
+    class TakeSnapshot(threading.Thread):
+        daemon = True
+
+        def run(self):
+            if hasattr(signal, 'pthread_sigmask'):
+                # Available on UNIX with Python 3.3+
+                signal.pthread_sigmask(signal.SIG_BLOCK, range(1, signal.NSIG))
+            counter = 1
+            while True:
+                time.sleep(60)
+                filename = ("/tmp/tracemalloc-%d-%04d.pickle"
+                            % (os.getpid(), counter))
+                print("Write snapshot into %s..." % filename)
+                gc.collect()
+                snapshot = tracemalloc.take_snapshot()
+                with open(filename, "wb") as fp:
+                    # Pickle version 2 can be read by Python 2 and Python 3
+                    pickle.dump(snapshot, fp, 2)
+                snapshot = None
+                print("Snapshot written into %s" % filename)
+                counter += 1
+
+    # save 25 frames
+    tracemalloc.start(25)
+    TakeSnapshot().start()
 
 
 API
