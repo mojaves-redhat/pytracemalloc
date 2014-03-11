@@ -36,6 +36,8 @@ Websites:
   <https://github.com/haypo/pytracemalloc>`_
 * `Statistics on the project at Ohloh
   <https://www.ohloh.net/p/pytracemalloc/>`_
+* `Qt graphical interface: tracemallocqt
+  <https://bitbucket.org/haypo/tracemallocqt/>`_
 
 The tracemalloc module has been integrated in Python 3.4: read `tracemalloc
 module documentation <http://docs.python.org/dev/library/tracemalloc.html>`_.
@@ -82,8 +84,8 @@ Commands to compile a patched Python and install pytracemalloc::
     /opt/tracemalloc/py27/bin/python2.7 setup.py install
 
 You have now a patched Python 2.7 installed in
-``/opt/tracemalloc/py27/bin/python2.7`` with the tracemalloc module installed,
-congrats!
+``/opt/tracemalloc/py27/bin/python2.7`` with the ``tracemalloc`` module
+installed, congrats!
 
 To use modules installed for the system Python, directories of ``sys.path``
 should be copied from the system Python to the patched Python. Example of
