@@ -841,6 +841,8 @@ Version 0.7 (2013-03-04)
 Similar Projects
 ================
 
+Python projects:
+
 * `Meliae: Python Memory Usage Analyzer
   <https://pypi.python.org/pypi/meliae>`_
 * `Guppy-PE: umbrella package combining Heapy and GSL
@@ -855,3 +857,11 @@ Similar Projects
 * `objgraph <http://mg.pov.lt/objgraph/>`_
 * `caulk <https://github.com/smartfile/caulk/>`_
 
+Perl projects:
+
+* `Devel::MAT
+  <https://metacpan.org/release/Devel-MAT>`_ by Paul Evans
+* `Devel::Size
+  <http://search.cpan.org/~nwclark/Devel-Size/lib/Devel/Size.pm>`_ by  Dan Sugalski
+* `Devel::SizeMe
+  <http://search.cpan.org/~timb/Devel-SizeMe/lib/Devel/SizeMe.pm`_ by Dan Sugalski
