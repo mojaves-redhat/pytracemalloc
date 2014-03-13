@@ -70,6 +70,11 @@ Cristian Maries.
 Manual installation
 -------------------
 
+First, create the directory ``/opt/tracemalloc``. Example::
+
+    sudo mkdir /opt/tracemalloc
+    sudo chown $USER: /opt/tracemalloc
+
 Commands to compile a patched Python and install pytracemalloc::
 
     wget http://www.python.org/ftp/python/2.7.6/Python-2.7.6.tgz
