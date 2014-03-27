@@ -6,6 +6,21 @@ It uses the Qt toolkit.
 
 * `tracemallocqt project at Bitbucket <https://bitbucket.org/haypo/tracemallocqt>`_
 
+Usage
+-----
+
+Analyze a single snapshot::
+
+    ./tracemallocqt.py snapshot.pickle
+
+Compare two snapshots::
+
+    ./tracemallocqt.py snapshot1.pickle snapshot2.pickle
+
+You can pass more snapshots and then use the checkbox to select which snapshots
+are compared. The snpashots are sorted by the modification time of the files.
+
+
 Installation
 ------------
 
