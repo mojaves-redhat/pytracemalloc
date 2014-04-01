@@ -4,12 +4,10 @@
 
 #ifdef PYMALLOC_DEBUG   /* WITH_PYMALLOC && PYMALLOC_DEBUG */
 /* Forward declaration */
-void _PyObject_DebugMallocStats(void);
-static void* _PyMem_DebugMalloc(void *ctx, size_t size);
-static void _PyMem_DebugFree(void *ctx, void *p);
-static void* _PyMem_DebugRealloc(void *ctx, void *ptr, size_t size);
+static void* _PyMem_DebugMallocCtx(void *ctx, size_t size);
+static void _PyMem_DebugFreeCtx(void *ctx, void *p);
+static void* _PyMem_DebugReallocCtx(void *ctx, void *ptr, size_t size);
 
-static void _PyObject_DebugDumpAddress(const void *p);
 static void _PyMem_DebugCheckAddress(char api_id, const void *p);
 #endif
 
@@ -80,7 +78,7 @@ static struct {
     {'o', {NULL, PYOBJECT_FUNCS}}
     };
 
-#define PYDEBUG_FUNCS _PyMem_DebugMalloc, _PyMem_DebugRealloc, _PyMem_DebugFree
+#define PYDEBUG_FUNCS _PyMem_DebugMallocCtx, _PyMem_DebugReallocCtx, _PyMem_DebugFreeCtx
 #endif
 
 static PyMemAllocator _PyMem_Raw = {
@@ -117,23 +115,23 @@ PyMem_SetupDebugHooks(void)
 #ifdef PYMALLOC_DEBUG
     PyMemAllocator alloc;
 
-    alloc.malloc = _PyMem_DebugMalloc;
-    alloc.realloc = _PyMem_DebugRealloc;
-    alloc.free = _PyMem_DebugFree;
+    alloc.malloc = _PyMem_DebugMallocCtx;
+    alloc.realloc = _PyMem_DebugReallocCtx;
+    alloc.free = _PyMem_DebugFreeCtx;
 
-    if (_PyMem_Raw.malloc != _PyMem_DebugMalloc) {
+    if (_PyMem_Raw.malloc != _PyMem_DebugMallocCtx) {
         alloc.ctx = &_PyMem_Debug.raw;
         PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &_PyMem_Debug.raw.alloc);
         PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &alloc);
     }
 
-    if (_PyMem.malloc != _PyMem_DebugMalloc) {
+    if (_PyMem.malloc != _PyMem_DebugMallocCtx) {
         alloc.ctx = &_PyMem_Debug.mem;
         PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &_PyMem_Debug.mem.alloc);
         PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
     }
 
-    if (_PyObject.malloc != _PyMem_DebugMalloc) {
+    if (_PyObject.malloc != _PyMem_DebugMallocCtx) {
         alloc.ctx = &_PyMem_Debug.obj;
         PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &_PyMem_Debug.obj.alloc);
         PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
@@ -1616,7 +1614,7 @@ p[2*S+n+S: 2*S+n+2*S]
 */
 
 static void *
-_PyMem_DebugMalloc(void *ctx, size_t nbytes)
+_PyMem_DebugMallocCtx(void *ctx, size_t nbytes)
 {
     debug_alloc_api_t *api = (debug_alloc_api_t *)ctx;
     uchar *p;           /* base address of malloc'ed block */
@@ -1655,7 +1653,7 @@ _PyMem_DebugMalloc(void *ctx, size_t nbytes)
    Then calls the underlying free.
 */
 static void
-_PyMem_DebugFree(void *ctx, void *p)
+_PyMem_DebugFreeCtx(void *ctx, void *p)
 {
     debug_alloc_api_t *api = (debug_alloc_api_t *)ctx;
     uchar *q = (uchar *)p - 2*SST;  /* address returned from malloc */
@@ -1672,7 +1670,7 @@ _PyMem_DebugFree(void *ctx, void *p)
 }
 
 static void *
-_PyMem_DebugRealloc(void *ctx, void *p, size_t nbytes)
+_PyMem_DebugReallocCtx(void *ctx, void *p, size_t nbytes)
 {
     debug_alloc_api_t *api = (debug_alloc_api_t *)ctx;
     uchar *q = (uchar *)p, *oldq;
@@ -1682,7 +1680,7 @@ _PyMem_DebugRealloc(void *ctx, void *p, size_t nbytes)
     int i;
 
     if (p == NULL)
-        return _PyMem_DebugMalloc(ctx, nbytes);
+        return _PyMem_DebugMallocCtx(ctx, nbytes);
 
     _PyMem_DebugCheckAddress(api->api_id, p);
     bumpserialno();
@@ -2077,3 +2075,44 @@ Py_ADDRESS_IN_RANGE(void *P, poolp pool)
            arenas[arenaindex_temp].address != 0;
 }
 #endif
+
+
+#if defined(WITH_PYMALLOC) && defined(PYMALLOC_DEBUG)
+/* Dummy functions only present to keep the same ABI with the vanilla Python
+   compiled in debug mode: they are not used in practice. See issue:
+   https://github.com/haypo/pytracemalloc/issues/1 */
+
+void* _PyMem_DebugMalloc(size_t nbytes)
+{ return PyMem_RawMalloc(nbytes); }
+
+void* _PyMem_DebugRealloc(void *p, size_t nbytes)
+{ return PyMem_RawRealloc(p, nbytes); }
+
+void _PyObject_DebugFree(void *p)
+{ return PyObject_Free(p); }
+
+void* _PyObject_DebugMalloc(size_t nbytes)
+{ return PyObject_Malloc(nbytes); }
+
+void* _PyObject_DebugRealloc(void *p, size_t nbytes)
+{ return PyObject_Realloc(p, nbytes); }
+
+void _PyMem_DebugFree(void *p)
+{ PyMem_RawFree(p); }
+
+void _PyObject_DebugCheckAddress(const void *p)
+{}
+
+void * _PyObject_DebugMallocApi(char api, size_t nbytes)
+{ return PyObject_Malloc(nbytes); }
+
+void * _PyObject_DebugReallocApi(char api, void *p, size_t nbytes)
+{ return PyObject_Realloc(p, nbytes); }
+
+void _PyObject_DebugFreeApi(char api, void *p)
+{ return PyObject_Free(p); }
+
+void _PyObject_DebugCheckAddressApi(char api, const void *p)
+{}
+#endif
+

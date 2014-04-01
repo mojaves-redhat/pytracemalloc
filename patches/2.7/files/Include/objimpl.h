@@ -99,6 +99,22 @@ PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
 PyAPI_FUNC(void) PyObject_Free(void *);
 
 /* Macros */
+#if defined(WITH_PYMALLOC) && defined(PYMALLOC_DEBUG)
+PyAPI_FUNC(void *) _PyObject_DebugMalloc(size_t nbytes);
+PyAPI_FUNC(void *) _PyObject_DebugRealloc(void *p, size_t nbytes);
+PyAPI_FUNC(void) _PyObject_DebugFree(void *p);
+PyAPI_FUNC(void) _PyObject_DebugDumpAddress(const void *p);
+PyAPI_FUNC(void) _PyObject_DebugCheckAddress(const void *p);
+PyAPI_FUNC(void) _PyObject_DebugMallocStats(void);
+PyAPI_FUNC(void *) _PyObject_DebugMallocApi(char api, size_t nbytes);
+PyAPI_FUNC(void *) _PyObject_DebugReallocApi(char api, void *p, size_t nbytes);
+PyAPI_FUNC(void) _PyObject_DebugFreeApi(char api, void *p);
+PyAPI_FUNC(void) _PyObject_DebugCheckAddressApi(char api, const void *p);
+PyAPI_FUNC(void *) _PyMem_DebugMalloc(size_t nbytes);
+PyAPI_FUNC(void *) _PyMem_DebugRealloc(void *p, size_t nbytes);
+PyAPI_FUNC(void) _PyMem_DebugFree(void *p);
+#endif
+
 #define PyObject_MALLOC         PyObject_Malloc
 #define PyObject_REALLOC        PyObject_Realloc
 #define PyObject_FREE           PyObject_Free
