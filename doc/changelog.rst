@@ -1,6 +1,11 @@
 Changelog
 =========
 
+Version 1.0.1
+-------------
+
+- Add a patch for Python 2.6
+
 Version 1.0 (2014-03-05)
 ------------------------
 
