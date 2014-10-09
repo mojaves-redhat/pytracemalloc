@@ -1,5 +1,4 @@
 from collections import Sequence
-from functools import total_ordering
 import fnmatch
 import linecache
 import os.path
@@ -8,6 +7,38 @@ import pickle
 # Import types and functions implemented in C
 from _tracemalloc import *
 from _tracemalloc import _get_object_traceback, _get_traces, __version__
+
+
+try:
+    from functools import total_ordering
+except ImportError:
+    # Python 2.6
+    def total_ordering(cls):
+        # Function backported from Python 2.7
+        convert = {
+            '__lt__': [('__gt__', lambda self, other: _not_op_and_not_eq(self.__lt__, self, other)),
+                       ('__le__', lambda self, other: _op_or_eq(self.__lt__, self, other)),
+                       ('__ge__', lambda self, other: _not_op(self.__lt__, other))],
+            '__le__': [('__ge__', lambda self, other: _not_op_or_eq(self.__le__, self, other)),
+                       ('__lt__', lambda self, other: _op_and_not_eq(self.__le__, self, other)),
+                       ('__gt__', lambda self, other: _not_op(self.__le__, other))],
+            '__gt__': [('__lt__', lambda self, other: _not_op_and_not_eq(self.__gt__, self, other)),
+                       ('__ge__', lambda self, other: _op_or_eq(self.__gt__, self, other)),
+                       ('__le__', lambda self, other: _not_op(self.__gt__, other))],
+            '__ge__': [('__le__', lambda self, other: _not_op_or_eq(self.__ge__, self, other)),
+                       ('__gt__', lambda self, other: _op_and_not_eq(self.__ge__, self, other)),
+                       ('__lt__', lambda self, other: _not_op(self.__ge__, other))]
+        }
+        roots = [op for op in convert if getattr(cls, op, None) is not getattr(object, op, None)]
+        if not roots:
+            raise ValueError('must define at least one ordering operation: < > <= >=')
+        root = max(roots)
+        for opname, opfunc in convert[root]:
+            if opname not in roots:
+                opfunc.__name__ = opname
+                opfunc.__doc__ = getattr(int, opname).__doc__
+                setattr(cls, opname, opfunc)
+        return cls
 
 
 def _format_size(size, sign):
