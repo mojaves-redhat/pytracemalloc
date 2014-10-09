@@ -297,7 +297,15 @@ tracemalloc_get_frame(PyFrameObject *pyframe, frame_t *frame)
     _Py_hashtable_entry_t *entry;
 
     frame->filename = unknown_filename;
+#if PY_MAJOR_VERSION == 2 && PY_MINOR_VERSION <= 6
+    /* Python 2.6 and older */
+    if (pyframe->f_trace)
+        frame->lineno = pyframe->f_lineno;
+    else
+        frame->lineno = PyCode_Addr2Line(pyframe->f_code, pyframe->f_lasti);
+#else
     frame->lineno = PyFrame_GetLineNumber(pyframe);
+#endif
     assert(frame->lineno >= 0);
     if (frame->lineno < 0)
         frame->lineno = 0;
