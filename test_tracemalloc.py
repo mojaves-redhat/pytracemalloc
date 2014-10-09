@@ -4,8 +4,10 @@ import linecache
 import os
 import sys
 import tracemalloc
-import unittest
-from test.script_helper import assert_python_ok, assert_python_failure
+try:
+    import unittest2 as unittest
+except ImportError:
+    import unittest
 try:
     from test import support
 except ImportError:
@@ -14,8 +16,45 @@ try:
     import threading
 except ImportError:
     threading = None
+try:
+    from test.script_helper import assert_python_ok, assert_python_failure
+except ImportError:
+    # Python 2.6 and older
+    import subprocess
+
+    def _assert_python(expected_success, *args, **env_vars):
+        cmd_line = [sys.executable]
+        if not env_vars:
+            cmd_line.append('-E')
+        cmd_line.extend(args)
+        env = os.environ.copy()
+        env.update(env_vars)
+        p = subprocess.Popen(cmd_line, stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=env)
+        try:
+            out, err = p.communicate()
+        finally:
+            subprocess._cleanup()
+            p.stdout.close()
+            p.stderr.close()
+        rc = p.returncode
+        err =  strip_python_stderr(err)
+        if (rc and expected_success) or (not rc and not expected_success):
+            raise AssertionError(
+                "Process return code is %d, "
+                "stderr follows:\n%s" % (rc, err.decode('ascii', 'ignore')))
+        return rc, out, err
+
+    def assert_python_ok(*args, **env_vars):
+        return _assert_python(True, *args, **env_vars)
+
+    def assert_python_failure(*args, **env_vars):
+        return _assert_python(False, *args, **env_vars)
+
 
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
+
 
 def get_frames(nframe, lineno_delta):
     frames = []
