@@ -5,6 +5,7 @@ Version 1.0.1
 -------------
 
 - Support Python 2.6
+- filter_traces() now raises a TypeError if filters is not an iterable
 
 Version 1.0 (2014-03-05)
 ------------------------
