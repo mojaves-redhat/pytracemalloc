@@ -1,11 +1,14 @@
 Changelog
 =========
 
-Version 1.0.1
--------------
+Version 1.2 (2014-10-15)
+------------------------
 
-- Support Python 2.6
 - filter_traces() now raises a TypeError if filters is not an iterable
+- Update Python 2.7 patch to try to keep the ABI unchanged, especially for
+  Python compiled in debug mode (``./configure --with-pydebug``)
+- Support Python 2.6
+- Enhance the documentation (website)
 
 Version 1.0 (2014-03-05)
 ------------------------
