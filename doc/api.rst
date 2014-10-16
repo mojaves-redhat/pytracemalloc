@@ -2,7 +2,7 @@ API
 ===
 
 The version of the module is ``tracemalloc.__version__`` (string), example:
-``"0.9.1"``.
+``"1.2"``.
 
 Functions
 ---------
@@ -69,9 +69,6 @@ Functions
    Storing more frames increases the memory and CPU overhead of the
    :mod:`tracemalloc` module. Use the :func:`get_tracemalloc_memory` function
    to measure how much memory is used by the :mod:`tracemalloc` module.
-
-   The :envvar:`PYTHONTRACEMALLOC` environment variable
-   (``PYTHONTRACEMALLOC=NFRAME``) can be used to start tracing at startup.
 
    See also :func:`stop`, :func:`is_tracing` and :func:`get_traceback_limit`
    functions.
@@ -362,4 +359,18 @@ Traceback
    instance.
 
 
+Differences between pytracemalloc (PyPI) and tracemalloc (stdlib)
+-----------------------------------------------------------------
+
+The tracemalloc module is part of the Python standard library since Python 3.4:
+read `tracemalloc module documentation
+<http://docs.python.org/dev/library/tracemalloc.html>`_.
+
+There are differences between the third party pytracemalloc module (downloaded
+from PyPI) and the tracemalloc which is part of the Python standard library:
+
+* stdlib tracemalloc supports a ``PYTHONTRACEMALLOC`` environment variable
+  to start tracing at Python startup.
+* stdlib tracemalloc supports a ``-X tracemalloc=NFRAMES`` command line option
+  to start tracing at Python startup.
 

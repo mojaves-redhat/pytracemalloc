@@ -4,16 +4,9 @@ Installation
 Linux packages
 --------------
 
-Ubuntu packages for pytracemalloc 1.0: `pytracemalloc 1.0 PPA
+Ubuntu packages for pytracemalloc 1.2: `pytracemalloc 1.0 PPA
 <https://launchpad.net/~ionel-mc/+archive/pytracemalloc-1.0>`_ by Ionel
 Cristian Maries.
-
-.. note::
-
-   There are also packages for pytracemalloc 0.9.1: `pytracemalloc PPA
-   <https://launchpad.net/~ionel-mc/+archive/pytracemalloc>`_. The API of
-   pytracemalloc 0.9 is very different of pytracemalloc 1.0 API and
-   pytracemalloc 0.9 is no more maintainted.
 
 
 Manual installation
@@ -26,15 +19,15 @@ First, create the directory ``/opt/tracemalloc``. Example::
 
 Commands to compile a patched Python and install pytracemalloc::
 
-    wget http://www.python.org/ftp/python/2.7.6/Python-2.7.6.tgz
-    wget https://pypi.python.org/packages/source/p/pytracemalloc/pytracemalloc-1.0.tar.gz
-    tar -xf Python-2.7.6.tgz
-    tar -xf pytracemalloc-1.0.tar.gz
-    cd Python-2.7.6
-    patch -p1 < ../pytracemalloc-1.0/patches/2.7/pep445.patch
+    wget http://www.python.org/ftp/python/2.7.8/Python-2.7.8.tgz
+    wget https://pypi.python.org/packages/source/p/pytracemalloc/pytracemalloc-1.2.tar.gz
+    tar -xf Python-2.7.8.tgz
+    tar -xf pytracemalloc-1.2.tar.gz
+    cd Python-2.7.8
+    patch -p1 < ../pytracemalloc-1.2/patches/2.7/pep445.patch
     ./configure --enable-unicode=ucs4 --prefix=/opt/tracemalloc/py27
     make install
-    cd ../pytracemalloc-1.0
+    cd ../pytracemalloc-1.2
     /opt/tracemalloc/py27/bin/python2.7 setup.py install
 
 You have now a patched Python 2.7 installed in
@@ -54,7 +47,7 @@ Patch Python
 To install pytracemalloc, you need a modified Python runtime:
 
 * Download Python source code (tarball)
-* Uncompress the tarball and enter the newly created directory (ex: Python-2.7.6)
+* Uncompress the tarball and enter the newly created directory (ex: Python-2.7.8)
 * Apply the patch of your Python version, example::
 
     patch -p1 < ~/pytracemalloc-1.0/patches/2.7/pep445.patch
