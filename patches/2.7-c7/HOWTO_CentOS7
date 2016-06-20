@@ -12,6 +12,12 @@
 5. recompile the python package
    4.a: cd $HOME/rpmbuild/SPECS
    4.b: rpmbuild -ba python.spec
+   - the rebuild process can take quite some time
+   - you'll need plenty of development packages installed, rpmbuild will tell you
 6. Find your new RPMS under $HOME/rpmbuild/RPMS/*
-   - WARNING: you may need to recompile non-pure python packages already installed (e.g. libvirt-python)
+   - those RPMs replace the ones shipped by default by CentOS 7.
+   - you may need to rebuild them, or reinstall them, if the system updates the python packages.
+   - the PEP445 patch should be ABI compatible with regular CentOS7's python, but this was not carefully
+     reviewed. Should you experience weird behaviours, please consider recompiling non-pure python
+     packages already installed (e.g. libvirt-python)
 
