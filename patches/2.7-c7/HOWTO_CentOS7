@@ -1,0 +1,17 @@
+1. grab the .src.rpm from http://vault.centos.org/7.2.1511/os/Source/SPackages/python-2.7.5-34.el7.src.rpm
+2. install it:  rpm -ivh python-2.7.5-34.el7.src.rpm 
+   - you can do this as unprivileged user (actually it is the recommended way)
+   - will install files under $HOME/rpmbuild/SOURCES and $HOME/rpmbuild/SPECS
+3. cp pep445.patch under $HOME/rpmbuild/SOURCES:
+   3.a: cd $HOME/rpmbuild/SOURCES
+   3.b: wget -v https://raw.githubusercontent.com/mojaves/pytracemalloc/master/patches/2.7-c7/pep445.patch -O 04000-pep445.patch
+4. apply patch to spec file:
+   4.a: cd $HOME/rpmbuild/SPECS
+   4.b: wget -v https://raw.githubusercontent.com/mojaves/pytracemalloc/master/patches/2.7-c7/python-pep445-spec.patch
+   4.c: patch -p0 < python-pep445-spec.patch
+5. recompile the python package
+   4.a: cd $HOME/rpmbuild/SPECS
+   4.b: rpmbuild -ba python.spec
+6. Find your new RPMS under $HOME/rpmbuild/RPMS/*
+   - WARNING: you may need to recompile non-pure python packages already installed (e.g. libvirt-python)
+

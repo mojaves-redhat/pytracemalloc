@@ -1,0 +1,18 @@
+--- python.spec	2016-06-20 15:36:33.728442644 +0200
++++ python-new.spec	2016-06-20 15:41:04.538508408 +0200
+@@ -1019,6 +1019,7 @@
+ # Resolves: rhbz#1259421
+ Patch228: 00228-backport-ssl-version.patch
+ 
++patch4000: 04000-pep445.patch
+ # (New patches go here ^^^)
+ #
+ # When adding new patches to "python" and "python3" in Fedora 17 onwards,
+@@ -1411,6 +1412,7 @@
+ %patch227 -p1
+ %patch228 -p1
+ 
++%patch4000 -p1
+ 
+ 
+ # This shouldn't be necesarry, but is right now (2.2a3)
