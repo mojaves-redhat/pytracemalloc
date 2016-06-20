@@ -1,5 +1,14 @@
---- python.spec	2016-06-20 15:36:33.728442644 +0200
-+++ python-new.spec	2016-06-20 15:41:04.538508408 +0200
+--- python.spec	2015-10-11 23:41:57.000000000 +0200
++++ python-new.spec	2016-06-20 16:22:49.152410141 +0200
+@@ -106,7 +106,7 @@
+ Name: %{python}
+ # Remember to also rebase python-docs when changing this:
+ Version: 2.7.5
+-Release: 34%{?dist}
++Release: 34.pep445_1%{?dist}
+ License: Python
+ Group: Development/Languages
+ Requires: %{python}-libs%{?_isa} = %{version}-%{release}
 @@ -1019,6 +1019,7 @@
  # Resolves: rhbz#1259421
  Patch228: 00228-backport-ssl-version.patch
