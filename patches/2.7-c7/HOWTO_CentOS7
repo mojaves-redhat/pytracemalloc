@@ -14,6 +14,11 @@
    4.b: rpmbuild -ba python.spec
    - the rebuild process can take quite some time
    - you'll need plenty of development packages installed, rpmbuild will tell you
+   - should you see failure in the tests:
+     -- check if the unpatched version fails in the same way (e.g. just recompile the src.rpm you downloaded in
+        step #1)
+     -- if so, or if you are willing to risk (e.g. development server), you can comment this line in the spec file:
+WITHIN_PYTHON_RPM_BUILD= EXTRATESTOPTS="$EXTRATESTOPTS" make test
 6. Find your new RPMS under $HOME/rpmbuild/RPMS/*
    - those RPMs replace the ones shipped by default by CentOS 7.
    - you may need to rebuild them, or reinstall them, if the system updates the python packages.
